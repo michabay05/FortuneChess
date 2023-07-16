@@ -141,6 +141,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\book.cpp" />
     <ClCompile Include="src\defs.hpp" />
     <ClCompile Include="src\attack.cpp" />
     <ClCompile Include="src\bitboard.cpp" />
@@ -151,19 +152,19 @@
     <ClCompile Include="src\move.cpp" />
     <ClCompile Include="src\perft.cpp" />
     <ClCompile Include="src\search.cpp" />
-    <ClCompile Include="src\tests.cpp">
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\Miku\Documents\ChessEngine\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
+    <ClCompile Include="src\tests.cpp" />
     <ClCompile Include="src\tt.cpp" />
     <ClCompile Include="src\uci.cpp" />
     <ClCompile Include="src\zobrist.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\book_consts.hpp" />
     <ClInclude Include="src\eval_consts.hpp" />
     <ClInclude Include="src\tests.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".clang-format" />
+    <None Include=".gitignore" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

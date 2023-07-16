@@ -30,35 +30,41 @@ void parseFen()
         b.parseFen(FEN_POSITIONS[i + 1]);
 
         _MY_ASSERT(b.side == SIDE[i], format_fail_str(STR(b.side), STR(SIDE[i])));
-        _MY_ASSERT(b.enpassant == ENPASSANT[i], format_fail_str(STR(b.enpassant), STR(ENPASSANT[i])));
+        _MY_ASSERT(b.enpassant == ENPASSANT[i],
+                   format_fail_str(STR(b.enpassant), STR(ENPASSANT[i])));
         _MY_ASSERT(b.castling == CASTLING[i], format_fail_str(STR(b.castling), STR(CASTLING[i])));
     }
     print_completion("parse_fen");
 }
 
-void moveGeneration()
+void polyKeyGeneration()
 {
-    const std::string FEN_STRS[4] = {
+    const std::string FEN_LIST[9] = {
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
-        "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2",
+        "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2",
+        "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3",
+        "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPPKPPP/RNBQ1BNR b kq - 0 3",
+        "rnbq1bnr/ppp1pkpp/8/3pPp2/8/8/PPPPKPPP/RNBQ1BNR w - - 0 4",
+        "rnbqkbnr/p1pppppp/8/8/PpP4P/8/1P1PPPP1/RNBQKBNR b KQkq c3 0 3",
+        "rnbqkbnr/p1pppppp/8/8/P6P/R1p5/1P1PPPP1/1NBQKBNR b Kkq - 0 4",
     };
-    const int NODE_COUNT[4] = {
-        197'281,
-        4'085'603,
-        422'333,
-        2'103'487,
-    };
-    const int PERFT_DEPTH = 4;
 
-    for (int i = 0; i < 4; i++) {
-        Board b;
-        b.parseFen(FEN_POSITIONS[i]);
-        uint64_t nodes = perftTest(b, PERFT_DEPTH, false);
-        _MY_ASSERT(nodes == NODE_COUNT[i], format_fail_str(STR(nodes), STR(NODE_COUNT[i])));
+    const uint64_t KEY_LIST[9] = {
+        0x463b96181691fc9c, 0x823c9b50fd114196, 0x0756b94461c50fb0,
+        0x662fafb965db29d4, 0x22a48b5a8e47ff78, 0x652a607ca3f242c1,
+        0x00fdd303c946bdd9, 0x3c8123ea7b067637, 0x5c3f9b829b279560,
+    };
+
+    Board b;
+
+    for (int i = 0; i < 9; i++) {
+        b.parseFen(FEN_LIST[i]);
+        uint64_t generatedPolyKey = genPolyKey(b);
+        _MY_ASSERT(generatedPolyKey == KEY_LIST[i], STR(i));
+        std::cout << "Completed " << i << " checks! ("<< FEN_LIST[i] << ")\n";
     }
-    print_completion("moveGeneration");
 }
 
 } // namespace test

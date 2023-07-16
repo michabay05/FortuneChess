@@ -9,7 +9,7 @@ TT* ttable = nullptr;
 
 void initTTable(int MB)
 {
-    _MY_ASSERT(MB >= 5, "Minimum size of transposition table is 5 MB");
+    _MY_ASSERT(MB >= 1, "Minimum size of transposition table is 1 MB");
     _MY_ASSERT(MB <= 128, "Maximum size of transposition table is 128 MB");
 
     const int HASH_SIZE = ONE_MB * MB;

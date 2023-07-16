@@ -43,7 +43,7 @@ bool isRepetition(Board& board);
 void clearSearchTable()
 {
     nodes = 0LL;
-    stop = false;
+    uciStop = false;
     followPV = false;
     scorePV = false;
     memset(killerMoves, 0, sizeof(killerMoves));
@@ -60,7 +60,7 @@ void searchPos(Board& board, const int depth)
     clearSearchTable();
     int alpha = -INF, beta = INF;
     for (int currDepth = 1; currDepth <= depth; currDepth++) {
-        if (stop)
+        if (uciStop)
             break;
         // Enable followPV
         followPV = true;
@@ -173,7 +173,7 @@ int negamax(Board* board, int alpha, int beta, int depth)
         board->repetitionIndex--;
 
         *board = anotherClone;
-        if (stop)
+        if (uciStop)
             return 0;
         // Fail hard; beta-cutoffs
         if (score >= beta)
@@ -241,7 +241,7 @@ int negamax(Board* board, int alpha, int beta, int depth)
 
         *board = clone;
 
-        if (stop)
+        if (uciStop)
             return 0;
 
         movesSearched++;
@@ -359,7 +359,7 @@ int quiescence(Board* board, int alpha, int beta)
 
         *board = clone;
 
-        if (stop)
+        if (uciStop)
             return 0;
 
         // If current move is better, update move

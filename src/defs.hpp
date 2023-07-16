@@ -6,7 +6,7 @@
 #include <iostream>
 #include <string>
 
-#define VERSION "1.0"
+#define VERSION "1.1"
 
 #define _MY_ASSERT(condition, message) custom_assert(condition, message, __LINE__, __FILE__)
 inline void custom_assert(bool cond, std::string msg, int line, std::string filename)
@@ -149,6 +149,23 @@ struct Board
     const std::string formatCastling() const;
 };
 
+// book.cpp
+struct PolyEntry
+{
+    uint64_t key;
+    uint16_t move;
+    uint16_t weight;
+    uint32_t learn;
+
+    PolyEntry();
+};
+
+extern PolyEntry* bookEntries;
+
+void initBook();
+void deinitBook();
+uint64_t genPolyKey(const Board& board);
+
 // eval.cpp
 void initEvalMasks();
 int evaluatePos(Board& board);
@@ -242,8 +259,9 @@ int readTTEntry(Board& board, int alpha, int beta, int depth);
 void writeTTEntry(Board& board, int score, int depth, TTFlag flag);
 
 // uci.cpp
-extern bool quit;
-extern bool stop;
+extern bool uciQuit;
+extern bool uciStop;
+extern bool uciUseBook;
 
 void uciLoop();
 long long getCurrTime();

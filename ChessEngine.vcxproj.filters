@@ -24,9 +24,6 @@
     <ClCompile Include="src\board.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\attack.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -57,16 +54,26 @@
     <ClCompile Include="src\search.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\book.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\tests.hpp">
+    <ClInclude Include="src\eval_consts.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\eval_consts.hpp">
+    <ClInclude Include="src\book_consts.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include=".clang-format" />
+    <None Include=".gitignore" />
   </ItemGroup>
 </Project>

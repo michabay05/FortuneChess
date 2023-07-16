@@ -7,6 +7,6 @@ namespace test
 {
 
 void parseFen();
-void moveGeneration();
+void polyKeyGeneration();
 
 } // namespace test

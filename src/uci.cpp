@@ -1,26 +1,27 @@
 #include "defs.hpp"
 
 #include <chrono>
+#include <cctype>
 
 Board mainBoard;
-bool quit = false;
-bool stop = false;
-bool isInfinite = false;
-bool isTimeControlled = false;
+bool uciQuit = false;
+bool uciStop = false;
+static bool isTimeControlled = false;
 
-int timeLeft = -1;
-int increment = 0;
-int movesToGo = 40;
-int moveTime = -1;
-long long startTime = 0L;
-long long stopTime = 0L;
+static int timeLeft = -1;
+static int increment = 0;
+static int movesToGo = 40;
+static int moveTime = -1;
+static long long startTime = 0L;
+static long long stopTime = 0L;
 
-bool debugMode = false;
+bool uciDebugMode = false;
+bool uciUseBook = true;
 
 void uciLoop()
 {
     std::string input;
-    while (!quit) {
+    while (!uciQuit) {
         input = "";
         // Get input
         std::getline(std::cin, input);
@@ -34,8 +35,7 @@ void uciLoop()
 void parse(const std::string& command)
 {
     if (command == "quit") {
-        std::cout << "Exiting the program!\n";
-        quit = true;
+        uciQuit = true;
     } else if (command == "ucinewgame")
         parsePos("position startpos");
     else if (command == "uci") {
@@ -59,12 +59,12 @@ void parse(const std::string& command)
             return;
         }
         std::string debugStatus = command.substr(5 + 1);
-        debugMode = (debugStatus == "on");
+        uciDebugMode = (debugStatus == "on");
     } else if (command.compare(0, 9, "setoption") == 0) {
         parseSetOption(command);
     } else if (command.compare(0, 5, "perft") == 0) {
         int depth = atoi(command.substr(6).c_str());
-        perftTest(mainBoard, depth, debugMode);
+        perftTest(mainBoard, depth, uciDebugMode);
     } else if (command == "help")
         printHelpInfo();
     else
@@ -120,8 +120,8 @@ long long getCurrTime()
 void parseGo(const std::string& command)
 {
     // Reset time control related variables
-    quit = false;
-    stop = false;
+    uciQuit = false;
+    uciStop = false;
     isTimeControlled = false;
     timeLeft = -1;
     increment = 0;
@@ -167,7 +167,7 @@ void parseGo(const std::string& command)
 
     if (depth == -1)
         depth = MAX_PLY;
-    if (debugMode) {
+    if (uciDebugMode) {
 		std::cout << "time: " << timeLeft << " start: " << startTime << " stop: " << stopTime
 				  << " depth: " << depth << " timeset: " << (int)isTimeControlled << "\n";
     }
@@ -212,15 +212,17 @@ void parseSetOption(const std::string& command)
     }
 
     if (name == "Hash") {
-        int val = std::stoi(value); 
-        initTTable(val);
+        int hashSizeVal = std::stoi(value); 
+        initTTable(hashSizeVal);
+    } else if (name == "Book") {
+        uciUseBook = (value == "true");
     }
 }
 
 void checkUp()
 {
     if (isTimeControlled && getCurrTime() >= stopTime)
-        stop = true;
+        uciStop = true;
 }
 
 void printEngineID()
@@ -229,7 +231,12 @@ void printEngineID()
     std::cout << "id author michabay05\n";
 }
 
-void printEngineOptions() { std::cout << "option name Hash type spin default 64 min 5 max 128\n"; }
+void printEngineOptions() {
+    std::cout << "option name Hash type spin default 64 min 5 max 128\n";
+    if (uciUseBook) {
+		std::cout << "option name Book type check default true\n";
+    }
+}
 
 void printHelpInfo()
 {

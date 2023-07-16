@@ -8,19 +8,21 @@
 void runTests()
 {
     test::parseFen();
-    test::moveGeneration();
+    test::polyKeyGeneration();
 }
 
 int main()
 {
     initAttacks();
+    initBook();
 	initEvalMasks();
     initTTable(64);
     initZobrist();
 #if TEST == 1
-    run_tests();
+    runTests();
 #else
     uciLoop();
 #endif
+    deinitBook();
     deinitTTable();
 }
