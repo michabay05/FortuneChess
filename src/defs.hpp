@@ -35,7 +35,7 @@ enum Sq {
 #define ROW(sq) (((int)sq) >> 3)
 #define COL(sq) (((int)sq) & 7)
 #define SQ(r, f) (((int)r) * 8 + ((int)f))
-#define FLIP(sq) ((int)sq ^ 56)
+#define FLIP(sq) (((int)sq) ^ 56)
 #define COLORLESS(piece) (((int)piece) % 6)
 
 #define setBit(bitboard, square) ((bitboard) |= (1ULL << (square)))
@@ -165,6 +165,7 @@ extern PolyEntry* bookEntries;
 void initBook();
 void deinitBook();
 uint64_t genPolyKey(const Board& board);
+int getBookMove(Board& board);
 
 // eval.cpp
 void initEvalMasks();
@@ -262,6 +263,7 @@ void writeTTEntry(Board& board, int score, int depth, TTFlag flag);
 extern bool uciQuit;
 extern bool uciStop;
 extern bool uciUseBook;
+extern bool uciDebugMode;
 
 void uciLoop();
 long long getCurrTime();

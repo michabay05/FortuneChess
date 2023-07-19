@@ -60,6 +60,12 @@ void parse(const std::string& command)
         }
         std::string debugStatus = command.substr(5 + 1);
         uciDebugMode = (debugStatus == "on");
+    } else if (command == "getbookmoves") {
+        int bookMove = getBookMove(mainBoard);
+        if (bookMove)
+            std::cout << "Chosen book move: " << moveToStr(bookMove) << "\n";
+        else
+            std::cout << "No book move for the current position\n";
     } else if (command.compare(0, 9, "setoption") == 0) {
         parseSetOption(command);
     } else if (command.compare(0, 5, "perft") == 0) {
@@ -227,7 +233,7 @@ void checkUp()
 
 void printEngineID()
 {
-    std::cout << "id name Chess Engine " << VERSION << "\n";
+    std::cout << "id name Chess Engine v" << VERSION << "\n";
     std::cout << "id author michabay05\n";
 }
 

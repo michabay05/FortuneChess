@@ -15,6 +15,7 @@ void initBook()
     fopen_s(&bookFile, "performance.bin", "rb");
     if (bookFile == NULL) {
         std::cout << "[ERROR]: Failed to *open* the opening book in.\n";
+        uciUseBook = false;
         return;
     }
     fseek(bookFile, 0, SEEK_END);
@@ -25,18 +26,22 @@ void initBook()
         return;
     }
     BookEntriesCount = fileSize / sizeof(PolyEntry);
-    
+
     bookEntries = new PolyEntry[BookEntriesCount];
     if (bookEntries == nullptr) {
         std::cout << "[ERROR]: Failed to *read* the opening book in.\n";
+        uciUseBook = false;
         return;
     }
 
-    fread(bookEntries, sizeof(PolyEntry), BookEntriesCount, bookFile);
-    char mbStr[6];
-    snprintf(mbStr, 5, "%1.2f", (fileSize / 1'000'000.f));
-    std::cout << "Opening book initialized with size of " << mbStr << " MB("
-              << BookEntriesCount << " entries)\n";
+    fseek(bookFile, 0, SEEK_SET);
+    int readEntries = (int)fread(bookEntries, sizeof(PolyEntry), BookEntriesCount, bookFile);
+    if (readEntries == BookEntriesCount) {
+        char mbStr[6];
+        snprintf(mbStr, 5, "%1.2f", (fileSize / 1'000'000.f));
+        std::cout << "Opening book initialized with size of " << mbStr << " MB(" << BookEntriesCount
+                  << " entries)\n";
+    }
 
     fclose(bookFile);
 }
@@ -107,4 +112,92 @@ uint64_t genPolyKey(const Board& board)
     }
 
     return finalPolyKey;
+}
+
+static uint16_t endianSwap(uint16_t x)
+{
+    x = (x >> 8) | (x << 8);
+    return x;
+}
+
+static uint64_t endianSwap(uint64_t x)
+{
+    x = (x >> 56) | ((x << 40) & 0x00FF000000000000) | ((x << 24) & 0x0000FF0000000000) |
+        ((x << 8) & 0x000000FF00000000) | ((x >> 8) & 0x00000000FF000000) |
+        ((x >> 24) & 0x0000000000FF0000) | ((x >> 40) & 0x000000000000FF00) | (x << 56);
+    return x;
+}
+
+static int toInternalMove(const uint16_t polyMove, Board& board)
+{
+    int sourceFile = (polyMove >> 6) & 7;
+    int sourceRow = (polyMove >> 9) & 7;
+    int targetFile = (polyMove >> 0) & 7;
+    int targetRow = (polyMove >> 3) & 7;
+    int promotedPiece = (polyMove >> 12) & 7;
+
+    int promoted;
+    switch (promotedPiece) {
+    case 1:
+        promoted = KNIGHT;
+        break;
+    case 2:
+        promoted = BISHOP;
+        break;
+    case 3:
+        promoted = ROOK;
+        break;
+    case 4:
+        promoted = QUEEN;
+        break;
+    default:
+        promoted = EMPTY;
+        break;
+    }
+
+    MoveList ml;
+    genAllMoves(ml, board);
+
+    int flippedSource = FLIP(SQ(sourceRow, sourceFile));
+    int flippedTarget = FLIP(SQ(targetRow, targetFile));
+    return ml.search(flippedSource, flippedTarget, promoted);
+}
+
+int getBookMove(Board& board)
+{
+    uint64_t polyKey = genPolyKey(board);
+    // There should be a maximum of 32 book moves for any given position
+    const int MAX_BOOK_MOVES = 32;
+    int bookMoves[MAX_BOOK_MOVES];
+    int bookMoveCount = 0;
+
+    uint16_t entryMove;
+    int internalMove;
+    for (int i = 0; i < BookEntriesCount; i++) {
+        if (polyKey != endianSwap(bookEntries[i].key))
+            continue;
+        entryMove = endianSwap(bookEntries[i].move);
+        if (entryMove == 0)
+            continue;
+        internalMove = toInternalMove(entryMove, board);
+        if (internalMove == 0)
+            continue;
+        bookMoves[bookMoveCount] = internalMove;
+        bookMoveCount++;
+        std::cout << "Found book move at index " << i << "\n";
+        if (bookMoveCount >= MAX_BOOK_MOVES)
+            break;
+    }
+
+    if (uciDebugMode) {
+		for (int i = 0; i < bookMoveCount; i++)
+			std::cout << moveToStr(bookMoves[i]) << "\n";
+    }
+
+    if (bookMoveCount) {
+        int randIndex = rand() % bookMoveCount;
+        return bookMoves[randIndex];
+    } else {
+        return 0;
+    }
 }

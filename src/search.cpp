@@ -54,6 +54,14 @@ void clearSearchTable()
 
 void searchPos(Board& board, const int depth)
 {
+    if (uciUseBook) {
+        int bookMove = getBookMove(board);
+        if (bookMove != 0) {
+            std::cout << "bestmove " << moveToStr(bookMove) << "\n";
+			return;
+        }
+    }
+
     long long startTime = getCurrTime();
 
     int score = 0;
