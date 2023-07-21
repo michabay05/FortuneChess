@@ -6,6 +6,8 @@
 PolyEntry* bookEntries = nullptr;
 static int BookEntriesCount;
 
+bool outOfBookMoves;
+
 void initBook()
 {
     if (!uciUseBook)
@@ -39,8 +41,10 @@ void initBook()
     if (readEntries == BookEntriesCount) {
         char mbStr[6];
         snprintf(mbStr, 5, "%1.2f", (fileSize / 1'000'000.f));
-        std::cout << "Opening book initialized with size of " << mbStr << " MB(" << BookEntriesCount
-                  << " entries)\n";
+        if (uciDebugMode) {
+			std::cout << "Opening book initialized with size of " << mbStr << " MB(" << BookEntriesCount
+					  << " entries)\n";
+        }
     }
 
     fclose(bookFile);
@@ -184,7 +188,6 @@ int getBookMove(Board& board)
             continue;
         bookMoves[bookMoveCount] = internalMove;
         bookMoveCount++;
-        std::cout << "Found book move at index " << i << "\n";
         if (bookMoveCount >= MAX_BOOK_MOVES)
             break;
     }
@@ -198,6 +201,7 @@ int getBookMove(Board& board)
         int randIndex = rand() % bookMoveCount;
         return bookMoves[randIndex];
     } else {
+        outOfBookMoves = true;
         return 0;
     }
 }

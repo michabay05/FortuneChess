@@ -37,6 +37,7 @@ enum Sq {
 #define SQ(r, f) (((int)r) * 8 + ((int)f))
 #define FLIP(sq) (((int)sq) ^ 56)
 #define COLORLESS(piece) (((int)piece) % 6)
+#define SQCLR(r, f) (((r) + (f) + 1) & 1)
 
 #define setBit(bitboard, square) ((bitboard) |= (1ULL << (square)))
 #define getBit(bitboard, square) (((bitboard) & (1ULL << (square))) ? 1 : 0)
@@ -197,12 +198,13 @@ bool isCastling(const int move);
 std::string moveToStr(const int move);
 int parseMoveStr(const std::string& moveStr, const Board& board);
 void genAllMoves(MoveList& moveList, const Board& board);
-void generatePawns(MoveList& moveList, const Board& board);
-void generateKnights(MoveList& moveList, const Board& board);
-void generateBishops(MoveList& moveList, const Board& board);
-void generateRooks(MoveList& moveList, const Board& board);
-void generateQueens(MoveList& moveList, const Board& board);
-void generateKings(MoveList& moveList, const Board& board);
+void genCaptureMoves(MoveList& moveList, const Board& board);
+void generatePawns(MoveList& moveList, const Board& board, MoveType moveType);
+void generateKnights(MoveList& moveList, const Board& board, MoveType moveType);
+void generateBishops(MoveList& moveList, const Board& board, MoveType moveType);
+void generateRooks(MoveList& moveList, const Board& board, MoveType moveType);
+void generateQueens(MoveList& moveList, const Board& board, MoveType moveType);
+void generateKings(MoveList& moveList, const Board& board, MoveType moveType);
 void genWhiteCastling(MoveList& moveList, const Board& board);
 void genBlackCastling(MoveList& moveList, const Board& board);
 bool makeMove(Board* main, const int move, MoveType moveFlag);
@@ -220,7 +222,7 @@ uint64_t getRookAttack(const int sq, uint64_t blockerBoard);
 uint64_t getQueenAttack(const int sq, uint64_t blockerBoard);
 
 // perft.cpp
-uint64_t perftTest(Board& board, const int depth, bool showDebugInfo);
+uint64_t perftTest(Board& board, const int depth, MoveType moveType);
 
 // search.cpp
 const int INF = 50'000;
@@ -251,13 +253,35 @@ struct TT
 
     TT();
 };
-extern TT* ttable;
 
+#define DEFAULT_TT_SIZE 128
+
+#if 1
+struct HashTable
+{
+    TT* table;
+    int entryCount;
+    int currentAge;
+
+    HashTable();
+    void init(int MB);
+    void deinit();
+    int read(Board& board, int alpha, int beta, int depth);
+    void store(Board& board, int score, int depth, TTFlag flag);
+    void clear();
+    void resize(int newMB);
+};
+
+extern HashTable tt;
+
+#else
+extern TT* ttable;
 void initTTable(int MB);
 void deinitTTable();
 void clearTTable();
 int readTTEntry(Board& board, int alpha, int beta, int depth);
 void writeTTEntry(Board& board, int score, int depth, TTFlag flag);
+#endif
 
 // uci.cpp
 extern bool uciQuit;

@@ -13,16 +13,25 @@ void runTests()
 
 int main()
 {
+    srand(time(NULL));
+
     initAttacks();
     initBook();
 	initEvalMasks();
-    initTTable(64);
+#if 1
+	tt.init(DEFAULT_TT_SIZE);
+#else
+    initTTable(128);
+#endif
     initZobrist();
 #if TEST == 1
     runTests();
 #else
-    uciLoop();
+    //uciLoop();
+    parse("position fen r3kb1r/3n1pp1/p6p/2pPp2q/Pp2N3/3B2PP/1PQ2P2/R3K2R w KQkq - 0 1");
+    parse("debug on");
+    parse("go depth 10");
 #endif
     deinitBook();
-    deinitTTable();
+    tt.deinit();
 }

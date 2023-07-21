@@ -124,7 +124,7 @@ int negamax(Board* board, int alpha, int beta, int depth)
 
     // Read score from transposition table if position already exists inside the
     // table
-    if (ply && (score = readTTEntry(*board, alpha, beta, depth)) != NO_TT_ENTRY && !isPVNode)
+    if (ply && (score = tt.read(*board, alpha, beta, depth)) != NO_TT_ENTRY && !isPVNode)
         return score;
 
     // every 2047 nodes
@@ -276,7 +276,7 @@ int negamax(Board* board, int alpha, int beta, int depth)
             // Fail-hard beta cutoff
             if (score >= beta) {
                 // Store hash entry with score equal to beta
-                writeTTEntry(*board, beta, depth, F_BETA);
+                tt.store(*board, beta, depth, F_BETA);
 
                 if (!isCapture(mv)) {
                     // Move 1st killer move to 2nd killer move
@@ -301,7 +301,7 @@ int negamax(Board* board, int alpha, int beta, int depth)
         }
     }
     // Store hash entry with score equal to alpha
-    writeTTEntry(*board, alpha, depth, flag);
+    tt.store(*board, alpha, depth, flag);
     // Move that failed low
     return alpha;
 }
@@ -335,7 +335,7 @@ int quiescence(Board* board, int alpha, int beta)
 
     // Generate and sort moves
     MoveList moveList;
-    genAllMoves(moveList, *board);
+    genCaptureMoves(moveList, *board);
     sortMoves(moveList, *board);
 
     Board clone;

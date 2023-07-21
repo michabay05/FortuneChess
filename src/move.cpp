@@ -1,6 +1,10 @@
 #include "defs.hpp"
 
-MoveList::MoveList() { memset(list, 0, sizeof(list)); }
+MoveList::MoveList()
+{
+    memset(list, 0, sizeof(list));
+    count = 0;
+}
 
 void MoveList::add(const int move)
 {
@@ -93,18 +97,22 @@ int parseMoveStr(const std::string& moveStr, const Board& board)
     return searchedMove;
 }
 
-void genAllMoves(MoveList& moveList, const Board& board)
+static void generate(MoveList& moveList, const Board& board, MoveType moveType)
 {
     moveList = MoveList();
-    generatePawns(moveList, board);
-    generateKnights(moveList, board);
-    generateBishops(moveList, board);
-    generateRooks(moveList, board);
-    generateQueens(moveList, board);
-    generateKings(moveList, board);
+    generatePawns(moveList, board, moveType);
+    generateKnights(moveList, board, moveType);
+    generateBishops(moveList, board, moveType);
+    generateRooks(moveList, board, moveType);
+    generateQueens(moveList, board, moveType);
+    generateKings(moveList, board, moveType);
 }
 
-void generatePawns(MoveList& moveList, const Board& board)
+void genAllMoves(MoveList& moveList, const Board& board) { generate(moveList, board, AllMoves); }
+
+void genCaptureMoves(MoveList& moveList, const Board& board) { generate(moveList, board, OnlyCaptures); }
+
+void generatePawns(MoveList& moveList, const Board& board, MoveType moveType)
 {
     uint64_t bitboardCopy, attackCopy;
     int promotionStart, direction, doublePushStart, piece;
@@ -129,25 +137,27 @@ void generatePawns(MoveList& moveList, const Board& board)
     while (bitboardCopy) {
         source = lsbIndex(bitboardCopy);
         target = source + direction;
-        if ((board.side == WHITE ? target >= A8 : target <= H1) &&
-            !getBit(board.units[BOTH], target)) {
-            // Quiet moves
-            // Promotion
-            if ((source >= promotionStart) && (source <= promotionStart + 7)) {
-                moveList.add(
-                    encode(source, target, piece, (board.side == WHITE ? wQ : bQ), 0, 0, 0, 0));
-                moveList.add(
-                    encode(source, target, piece, (board.side == WHITE ? wR : bR), 0, 0, 0, 0));
-                moveList.add(
-                    encode(source, target, piece, (board.side == WHITE ? wB : bB), 0, 0, 0, 0));
-                moveList.add(
-                    encode(source, target, piece, (board.side == WHITE ? wN : bN), 0, 0, 0, 0));
-            } else {
-                moveList.add(encode(source, target, piece, EMPTY, 0, 0, 0, 0));
-                if ((source >= doublePushStart && source <= doublePushStart + 7) &&
-                    !getBit(board.units[BOTH], target + direction))
-                    moveList.add(encode(source, target + direction, piece, EMPTY, 0, 1, 0, 0));
-            }
+        if (moveType != OnlyCaptures) {
+			if ((board.side == WHITE ? target >= A8 : target <= H1) &&
+				!getBit(board.units[BOTH], target)) {
+				// Quiet moves
+				// Promotion
+				if ((source >= promotionStart) && (source <= promotionStart + 7)) {
+					moveList.add(
+						encode(source, target, piece, (board.side == WHITE ? wQ : bQ), 0, 0, 0, 0));
+					moveList.add(
+						encode(source, target, piece, (board.side == WHITE ? wR : bR), 0, 0, 0, 0));
+					moveList.add(
+						encode(source, target, piece, (board.side == WHITE ? wB : bB), 0, 0, 0, 0));
+					moveList.add(
+						encode(source, target, piece, (board.side == WHITE ? wN : bN), 0, 0, 0, 0));
+				} else {
+					moveList.add(encode(source, target, piece, EMPTY, 0, 0, 0, 0));
+					if ((source >= doublePushStart && source <= doublePushStart + 7) &&
+						!getBit(board.units[BOTH], target + direction))
+						moveList.add(encode(source, target + direction, piece, EMPTY, 0, 1, 0, 0));
+				}
+			}
         }
         // Capture moves
         attackCopy = pawnAttacks[board.side][source] & board.units[board.side ^ 1];
@@ -181,7 +191,7 @@ void generatePawns(MoveList& moveList, const Board& board)
     }
 }
 
-void generateKnights(MoveList& moveList, const Board& board)
+void generateKnights(MoveList& moveList, const Board& board, MoveType moveType)
 {
     int source, target, piece = board.side == WHITE ? wN : bN;
     uint64_t bitboardCopy = board.pieces[piece], attackCopy;
@@ -191,17 +201,19 @@ void generateKnights(MoveList& moveList, const Board& board)
         attackCopy = knightAttacks[source] & (~board.units[board.side]);
         while (attackCopy) {
             target = lsbIndex(attackCopy);
-            if (getBit(board.units[!board.side], target))
-                moveList.add(encode(source, target, piece, EMPTY, 1, 0, 0, 0));
-            else
-                moveList.add(encode(source, target, piece, EMPTY, 0, 0, 0, 0));
+            bool isCapture = getBit(board.units[board.side == WHITE ? BLACK : WHITE], target);
+            if (!isCapture && moveType == OnlyCaptures) {
+				popBit(attackCopy, target);
+                continue;
+            }
+			moveList.add(encode(source, target, piece, EMPTY, isCapture, 0, 0, 0));
             popBit(attackCopy, target);
         }
         popBit(bitboardCopy, source);
     }
 }
 
-void generateBishops(MoveList& moveList, const Board& board)
+void generateBishops(MoveList& moveList, const Board& board, MoveType moveType)
 {
     int source, target, piece = board.side == WHITE ? wB : bB;
     uint64_t bitboardCopy = board.pieces[piece], attackCopy;
@@ -212,17 +224,19 @@ void generateBishops(MoveList& moveList, const Board& board)
                      (board.side == WHITE ? ~board.units[WHITE] : ~board.units[BLACK]);
         while (attackCopy) {
             target = lsbIndex(attackCopy);
-            if (getBit(board.units[board.side == WHITE ? BLACK : WHITE], target))
-                moveList.add(encode(source, target, piece, EMPTY, 1, 0, 0, 0));
-            else
-                moveList.add(encode(source, target, piece, EMPTY, 0, 0, 0, 0));
+            bool isCapture = getBit(board.units[board.side == WHITE ? BLACK : WHITE], target);
+            if (!isCapture && moveType == OnlyCaptures) {
+				popBit(attackCopy, target);
+                continue;
+            }
+			moveList.add(encode(source, target, piece, EMPTY, isCapture, 0, 0, 0));
             popBit(attackCopy, target);
         }
         popBit(bitboardCopy, source);
     }
 }
 
-void generateRooks(MoveList& moveList, const Board& board)
+void generateRooks(MoveList& moveList, const Board& board, MoveType moveType)
 {
     int source, target, piece = board.side == WHITE ? wR : bR;
     uint64_t bitboardCopy = board.pieces[piece], attackCopy;
@@ -233,17 +247,19 @@ void generateRooks(MoveList& moveList, const Board& board)
                      (board.side == WHITE ? ~board.units[WHITE] : ~board.units[BLACK]);
         while (attackCopy) {
             target = lsbIndex(attackCopy);
-            if (getBit(board.units[board.side == WHITE ? BLACK : WHITE], target))
-                moveList.add(encode(source, target, piece, EMPTY, 1, 0, 0, 0));
-            else
-                moveList.add(encode(source, target, piece, EMPTY, 0, 0, 0, 0));
+            bool isCapture = getBit(board.units[board.side == WHITE ? BLACK : WHITE], target);
+            if (!isCapture && moveType == OnlyCaptures) {
+				popBit(attackCopy, target);
+                continue;
+            }
+			moveList.add(encode(source, target, piece, EMPTY, isCapture, 0, 0, 0));
             popBit(attackCopy, target);
         }
         popBit(bitboardCopy, source);
     }
 }
 
-void generateQueens(MoveList& moveList, const Board& board)
+void generateQueens(MoveList& moveList, const Board& board, MoveType moveType)
 {
     int source, target, piece = board.side == WHITE ? wQ : bQ;
     uint64_t bitboardCopy = board.pieces[piece], attackCopy;
@@ -254,47 +270,51 @@ void generateQueens(MoveList& moveList, const Board& board)
                      (board.side == WHITE ? ~board.units[WHITE] : ~board.units[BLACK]);
         while (attackCopy) {
             target = lsbIndex(attackCopy);
-            if (getBit(board.units[board.side == WHITE ? BLACK : WHITE], target))
-                moveList.add(encode(source, target, piece, EMPTY, 1, 0, 0, 0));
-            else
-                moveList.add(encode(source, target, piece, EMPTY, 0, 0, 0, 0));
+            bool isCapture = getBit(board.units[board.side == WHITE ? BLACK : WHITE], target);
+            if (!isCapture && moveType == OnlyCaptures) {
+				popBit(attackCopy, target);
+                continue;
+            }
+			moveList.add(encode(source, target, piece, EMPTY, isCapture, 0, 0, 0));
             popBit(attackCopy, target);
         }
         popBit(bitboardCopy, source);
     }
 }
 
-void generateKings(MoveList& moveList, const Board& board)
+void generateKings(MoveList& moveList, const Board& board, MoveType moveType)
 {
     /* NOTE: Checks aren't handled by the move generator,
              it's handled by the make move function.
     */
     int source, target, piece = board.side == WHITE ? wK : bK;
-    uint64_t bitboard = board.pieces[piece], attack;
+    uint64_t bitboard = board.pieces[piece], attackCopy;
     while (bitboard != 0) {
         source = lsbIndex(bitboard);
 
-        attack =
+        attackCopy =
             kingAttacks[source] & (board.side == WHITE ? ~board.units[WHITE] : ~board.units[BLACK]);
-        while (attack != 0) {
-            target = lsbIndex(attack);
-
-            if (getBit((board.units[board.side == WHITE ? BLACK : WHITE]), target))
-                moveList.add(encode(source, target, piece, EMPTY, 1, 0, 0, 0));
-            else
-                moveList.add(encode(source, target, piece, EMPTY, 0, 0, 0, 0));
-
+        while (attackCopy != 0) {
+            target = lsbIndex(attackCopy);
+            bool isCapture = getBit(board.units[board.side == WHITE ? BLACK : WHITE], target);
+            if (!isCapture && moveType == OnlyCaptures) {
+				popBit(attackCopy, target);
+                continue;
+            }
+			moveList.add(encode(source, target, piece, EMPTY, isCapture, 0, 0, 0));
             // Remove target bit to move onto the next bit
-            popBit(attack, target);
+            popBit(attackCopy, target);
         }
         // Remove source bit to move onto the next bit
         popBit(bitboard, source);
     }
     // Generate castling moves
-    if (board.side == WHITE)
-        genWhiteCastling(moveList, board);
-    else
-        genBlackCastling(moveList, board);
+    if (moveType != OnlyCaptures) {
+		if (board.side == WHITE)
+			genWhiteCastling(moveList, board);
+		else
+			genBlackCastling(moveList, board);
+    }
 }
 
 void genWhiteCastling(MoveList& moveList, const Board& board)
@@ -420,17 +440,17 @@ bool makeMove(Board* main, const int move, MoveType moveFlag)
             int rookType, castlingSource, castlingTarget;
             switch (target) {
             case G1:
-                rookType = Piece::wR;
+                rookType = wR;
                 castlingSource = H1;
                 castlingTarget = F1;
                 break;
             case C1:
-                rookType = Piece::wR;
+                rookType = wR;
                 castlingSource = A1;
                 castlingTarget = D1;
                 break;
             case G8:
-                rookType = Piece::bR;
+                rookType = bR;
                 castlingSource = H8;
                 castlingTarget = F8;
                 break;
@@ -494,7 +514,7 @@ bool makeMove(Board* main, const int move, MoveType moveFlag)
     } else {
         // If capture, recall makeMove() and make move
         if (isCapture(move))
-            return makeMove(main, move, MoveType::AllMoves);
+            return makeMove(main, move, AllMoves);
         // If not capture, don't make move
         return false;
     }

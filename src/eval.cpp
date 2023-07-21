@@ -39,35 +39,25 @@ void initEvalMasks()
 {
     int r = 0, f = 0;
 
-    /******** Init file masks ********/
     for (r = 0; r < 8; r++) {
         for (f = 0; f < 8; f++) {
             int square = r * 8 + f;
+            /******** Init file masks ********/
             fileMasks[square] |= setFileRankMask(f, -1);
-        }
-    }
-
-    /******** Init rank masks ********/
-    for (r = 0; r < 8; r++) {
-        for (f = 0; f < 8; f++) {
-            int square = r * 8 + f;
+            /******** Init rank masks ********/
             rankMasks[square] |= setFileRankMask(-1, r);
         }
     }
 
-    /******** Init isolated masks ********/
     for (r = 0; r < 8; r++) {
         for (f = 0; f < 8; f++) {
             int square = r * 8 + f;
+
+            /******** Init isolated masks ********/
             isolatedMasks[square] |= setFileRankMask(f - 1, -1);
             isolatedMasks[square] |= setFileRankMask(f + 1, -1);
-        }
-    }
 
-    /******** White passed masks ********/
-    for (r = 0; r < 8; r++) {
-        for (f = 0; f < 8; f++) {
-            int square = r * 8 + f;
+            /******** White passed masks ********/
             passedMasks[0][square] |= setFileRankMask(f - 1, -1);
             passedMasks[0][square] |= setFileRankMask(f, -1);
             passedMasks[0][square] |= setFileRankMask(f + 1, -1);
@@ -76,13 +66,8 @@ void initEvalMasks()
             for (int i = 0; i < (8 - r); i++)
                 // reset redudant bits
                 passedMasks[0][square] &= ~rankMasks[(7 - i) * 8 + f];
-        }
-    }
 
-    /******** Black passed masks ********/
-    for (r = 0; r < 8; r++) {
-        for (f = 0; f < 8; f++) {
-            int square = r * 8 + f;
+            /******** Black passed masks ********/
             passedMasks[1][square] |= setFileRankMask(f - 1, -1);
             passedMasks[1][square] |= setFileRankMask(f, -1);
             passedMasks[1][square] |= setFileRankMask(f + 1, -1);
@@ -124,9 +109,66 @@ static inline int calcPhaseScore(Board& board)
     return whitePieceScores + blackPieceScores;
 }
 
+static bool areSameColoredBishops(Board& board, Color side)
+{
+    uint64_t bbCopy = board.pieces[side * 6 + 2];
+    int sq = 0;
+    int bishopColor = -1;
+    while (bbCopy) {
+        sq = lsbIndex(bbCopy);
+        int prevColor = bishopColor;
+        bishopColor = SQCLR(ROW(sq), COL(sq));
+        if (prevColor != -1 && bishopColor != prevColor) {
+            std::cout << "Same color!\n";
+            return false;
+        }
+        popBit(bbCopy, sq);
+    }
+    return true;
+}
+
+#define COUNT(piece) countBits(board.pieces[(piece)])
+#define EXISTS(piece) (COUNT((piece)) > 0)
+
+static bool isDrawByInsufficientMat(Board& board)
+{
+    /* Positions are drawn due to insufficient material if
+        - KNN vs k
+        - K   vs knn
+
+        - KB  vs k
+        - K   vs kb
+        - KBB vs k (where all of white's bishops are on the light/dark squares)
+
+        - KN vs kb
+        - KB vs kn
+
+        - K  vs k
+    */
+    // If the position has a queen or rook or pawn, the position isn't a draw
+    if (EXISTS(wP) || EXISTS(bP) || EXISTS(wR) || EXISTS(bR) || EXISTS(wQ) || EXISTS(bQ))
+        return false;
+
+    if ((!EXISTS(wN) && !EXISTS(bN) && !EXISTS(wB) && !EXISTS(bB)) || // K  vs k
+        (COUNT(wN) == 1 && COUNT(bN) == 1) ||                         // KN  vs kn
+        (COUNT(wN) <= 2 && COUNT(bN) == 0) ||                         // KNN vs k
+        (COUNT(wN) == 0 && COUNT(bN) <= 2) ||                         // K   vs knn
+        (COUNT(wB) == 1 && COUNT(bB) == 0) ||                         // KB  vs kb
+        (COUNT(wN) == 1 && COUNT(bB) == 1) ||                         // KN  vs kb
+        (COUNT(wB) == 1 && COUNT(bN) == 1) ||                         // KB  vs kn
+        (COUNT(wB) >= 2 && areSameColoredBishops(board, WHITE)) ||
+        (COUNT(bB) >= 2 && areSameColoredBishops(board, BLACK))) {
+        return true;
+    }
+    return false;
+}
+
 // position evaluation
 int evaluatePos(Board& board)
 {
+    //if (isDrawByInsufficientMat(board))
+    //    return 0;
+
     // get game phase score
     int phaseScore = calcPhaseScore(board);
 
@@ -214,12 +256,10 @@ int evaluatePos(Board& board)
                 endgameScore += POSITIONAL_SCORE[Endgame][BISHOP][sq];
 
                 // mobility
-                openingScore +=
-                    (countBits(getBishopAttack(sq, board.units[BOTH])) - BISHOP_UNIT) *
-                    BISHOP_MOBILITY_OPENING;
-                endgameScore +=
-                    (countBits(getBishopAttack(sq, board.units[BOTH])) - BISHOP_UNIT) *
-                    BISHOP_MOBILITY_ENDGAME;
+                openingScore += (countBits(getBishopAttack(sq, board.units[BOTH])) - BISHOP_UNIT) *
+                                BISHOP_MOBILITY_OPENING;
+                endgameScore += (countBits(getBishopAttack(sq, board.units[BOTH])) - BISHOP_UNIT) *
+                                BISHOP_MOBILITY_ENDGAME;
                 break;
 
             // evaluate white rooks
@@ -251,12 +291,10 @@ int evaluatePos(Board& board)
                 endgameScore += POSITIONAL_SCORE[Endgame][QUEEN][sq];
 
                 // mobility
-                openingScore +=
-                    (countBits(getQueenAttack(sq, board.units[BOTH])) - QUEEN_UNIT) *
-                    QUEEN_MOBILITY_OPENING;
-                endgameScore +=
-                    (countBits(getQueenAttack(sq, board.units[BOTH])) - QUEEN_UNIT) *
-                    QUEEN_MOBILITY_ENDGAME;
+                openingScore += (countBits(getQueenAttack(sq, board.units[BOTH])) - QUEEN_UNIT) *
+                                QUEEN_MOBILITY_OPENING;
+                endgameScore += (countBits(getQueenAttack(sq, board.units[BOTH])) - QUEEN_UNIT) *
+                                QUEEN_MOBILITY_ENDGAME;
                 break;
 
             // evaluate white king
@@ -280,10 +318,8 @@ int evaluatePos(Board& board)
                 }
 
                 // king safety bonus
-                openingScore +=
-                    countBits(kingAttacks[sq] & board.units[WHITE]) * KING_SHIELD_BONUS;
-                endgameScore +=
-                    countBits(kingAttacks[sq] & board.units[WHITE]) * KING_SHIELD_BONUS;
+                openingScore += countBits(kingAttacks[sq] & board.units[WHITE]) * KING_SHIELD_BONUS;
+                endgameScore += countBits(kingAttacks[sq] & board.units[WHITE]) * KING_SHIELD_BONUS;
 
                 break;
 
@@ -332,12 +368,10 @@ int evaluatePos(Board& board)
                 endgameScore -= POSITIONAL_SCORE[Endgame][BISHOP][MIRROR_SCORE[sq]];
 
                 // mobility
-                openingScore -=
-                    (countBits(getBishopAttack(sq, board.units[BOTH])) - BISHOP_UNIT) *
-                    BISHOP_MOBILITY_OPENING;
-                endgameScore -=
-                    (countBits(getBishopAttack(sq, board.units[BOTH])) - BISHOP_UNIT) *
-                    BISHOP_MOBILITY_ENDGAME;
+                openingScore -= (countBits(getBishopAttack(sq, board.units[BOTH])) - BISHOP_UNIT) *
+                                BISHOP_MOBILITY_OPENING;
+                endgameScore -= (countBits(getBishopAttack(sq, board.units[BOTH])) - BISHOP_UNIT) *
+                                BISHOP_MOBILITY_ENDGAME;
                 break;
 
             // evaluate black rooks
@@ -369,12 +403,10 @@ int evaluatePos(Board& board)
                 endgameScore -= POSITIONAL_SCORE[Endgame][QUEEN][MIRROR_SCORE[sq]];
 
                 // mobility
-                openingScore -=
-                    (countBits(getQueenAttack(sq, board.units[BOTH])) - QUEEN_UNIT) *
-                    QUEEN_MOBILITY_OPENING;
-                endgameScore -=
-                    (countBits(getQueenAttack(sq, board.units[BOTH])) - QUEEN_UNIT) *
-                    QUEEN_MOBILITY_ENDGAME;
+                openingScore -= (countBits(getQueenAttack(sq, board.units[BOTH])) - QUEEN_UNIT) *
+                                QUEEN_MOBILITY_OPENING;
+                endgameScore -= (countBits(getQueenAttack(sq, board.units[BOTH])) - QUEEN_UNIT) *
+                                QUEEN_MOBILITY_ENDGAME;
                 break;
 
             // evaluate black king
@@ -398,10 +430,8 @@ int evaluatePos(Board& board)
                 }
 
                 // king safety bonus
-                openingScore -=
-                    countBits(kingAttacks[sq] & board.units[BLACK]) * KING_SHIELD_BONUS;
-                endgameScore -=
-                    countBits(kingAttacks[sq] & board.units[BLACK]) * KING_SHIELD_BONUS;
+                openingScore -= countBits(kingAttacks[sq] & board.units[BLACK]) * KING_SHIELD_BONUS;
+                endgameScore -= countBits(kingAttacks[sq] & board.units[BLACK]) * KING_SHIELD_BONUS;
                 break;
             }
 

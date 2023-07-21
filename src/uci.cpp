@@ -70,7 +70,7 @@ void parse(const std::string& command)
         parseSetOption(command);
     } else if (command.compare(0, 5, "perft") == 0) {
         int depth = atoi(command.substr(6).c_str());
-        perftTest(mainBoard, depth, uciDebugMode);
+        perftTest(mainBoard, depth, AllMoves);
     } else if (command == "help")
         printHelpInfo();
     else
@@ -219,7 +219,11 @@ void parseSetOption(const std::string& command)
 
     if (name == "Hash") {
         int hashSizeVal = std::stoi(value); 
+#if 1
+        tt.init(hashSizeVal);
+#else
         initTTable(hashSizeVal);
+#endif
     } else if (name == "Book") {
         uciUseBook = (value == "true");
     }
@@ -233,12 +237,12 @@ void checkUp()
 
 void printEngineID()
 {
-    std::cout << "id name Chess Engine v" << VERSION << "\n";
+    std::cout << "id name Fortune v" << VERSION << "\n";
     std::cout << "id author michabay05\n";
 }
 
 void printEngineOptions() {
-    std::cout << "option name Hash type spin default 64 min 5 max 128\n";
+    std::cout << "option name Hash type spin default 128 min 1 max 1024\n";
     if (uciUseBook) {
 		std::cout << "option name Book type check default true\n";
     }

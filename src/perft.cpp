@@ -1,6 +1,6 @@
 #include "defs.hpp"
 
-void driver(Board& board, int depth, uint64_t& nodeCount)
+void driver(Board& board, int depth, uint64_t& nodeCount, MoveType moveType)
 {
     if (depth == 0) {
         nodeCount++;
@@ -13,10 +13,10 @@ void driver(Board& board, int depth, uint64_t& nodeCount)
         // Clone the current state of the board
         clone = board;
         // Make move if it's not illegal (or check)
-        if (!makeMove(&board, moveList.list[i], MoveType::AllMoves))
+        if (!makeMove(&board, moveList.list[i], moveType))
             continue;
 
-        driver(board, depth - 1, nodeCount);
+        driver(board, depth - 1, nodeCount, moveType);
 
         // Restore board state
         board = clone;
@@ -41,30 +41,35 @@ void driver(Board& board, int depth, uint64_t& nodeCount)
     }
 }
 
-uint64_t perftTest(Board& board, const int depth, bool showDebugInfo)
+uint64_t perftTest(Board& board, const int depth, MoveType moveType)
 {
     uint64_t nodeCount = 0ULL;
     MoveList moveList;
-    genAllMoves(moveList, board);
+    if (moveType == AllMoves)
+		genAllMoves(moveList, board);
+    else
+		genCaptureMoves(moveList, board);
     Board clone;
     for (int i = 0; i < moveList.count; i++) {
         // Clone the current state of the board
         clone = board;
         // Make move if it's not illegal (or check)
-        if (!makeMove(&board, moveList.list[i], MoveType::AllMoves))
+        if (!makeMove(&board, moveList.list[i], moveType))
             continue;
 
         uint64_t prevNodeCount = nodeCount;
-        driver(board, depth - 1, nodeCount);
+        driver(board, depth - 1, nodeCount, moveType);
 
         // Restore board state
         board = clone;
 
-        if (showDebugInfo) {
+        if (uciDebugMode) {
             std::cout << moveToStr(moveList.list[i]) << ": " << (nodeCount - prevNodeCount)
                       << "\n";
         }
     }
-	std::cout << "Nodes: " << nodeCount << "\n";
+    std::string nodesStr =
+        moveType == AllMoves ? "Total number of moves: " : "Total number of captures: ";
+	std::cout << nodesStr << nodeCount << "\n";
     return nodeCount;
 }

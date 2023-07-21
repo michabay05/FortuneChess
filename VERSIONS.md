@@ -1,10 +1,8 @@
 # CHESS ENGINE
 
-## v1.1.1
-- Improved the speed of quiescence search by generating and sorting capture moves only instead of all possible moves
-
-## v1.1.0
-- Implemented a Polyglot opening book and integrated it with the UCI protocol
+## v1.1
+- Increased speed of quiescence search by generating and sorting capture moves only instead of all possible moves
+- Polyglot opening book with UCI integration
 
 ## v1.0
 List of implemented features
