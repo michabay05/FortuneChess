@@ -24,10 +24,6 @@ int main()
     runTests();
 #else
     uciLoop();
-    //parse("position fen r3kb1r/3n1pp1/p6p/2pPp2q/Pp2N3/3B2PP/1PQ2P2/R3K2R w KQkq - 0 1");
-    //parse("debug on");
-    //parse("go depth 10");
-
 #endif
     if (uci.quit) {
 		deinitBook();

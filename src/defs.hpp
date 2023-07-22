@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <iostream>
 #include <string>
-#include <thread>
+#include "tinycthread.h"
 
 #define VERSION "1.1"
 
@@ -182,7 +182,7 @@ struct UCIInfo
 
     int searchDepth = -1;
 
-    bool debugMode = true;
+    bool debugMode = false;
     bool useBook = true;
 };
 
@@ -231,7 +231,8 @@ extern int64_t nodes;
 extern HashTable hashTable[1];
 
 // thread.cpp
-extern std::thread mainSearchThread;
+extern thrd_t mainSearchThread;
+extern bool threadCreated;
 
 // tt.cpp
 extern const int NO_TT_ENTRY;
@@ -320,8 +321,7 @@ uint64_t perftTest(Board& board, const int depth, MoveType moveType);
 void searchPos(Board* board, HashTable* tt, UCIInfo* info);
 
 // thread.cpp
-int threadSearchPos(SearchThreadData* data);
-std::thread launchSearchThread(Board* board, HashTable* tt, UCIInfo* uciInfo);
+thrd_t launchSearchThread(Board* board, HashTable* tt, UCIInfo* uciInfo);
 void joinSearchThread(UCIInfo* uci);
 
 // uci.cpp

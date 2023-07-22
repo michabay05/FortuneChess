@@ -1,9 +1,11 @@
 #include "defs.hpp"
 
-std::thread mainSearchThread;
+thrd_t mainSearchThread;
+bool threadCreated = false;
 
-int threadSearchPos(SearchThreadData* data)
+int threadSearchPos(void* thData)
 {
+    SearchThreadData* data = (SearchThreadData*)thData;
     if (uci.debugMode)
 		std::cout << "Entered a new thread!\n";
 
@@ -18,19 +20,21 @@ int threadSearchPos(SearchThreadData* data)
     return 0;
 }
 
-std::thread launchSearchThread(Board* board, HashTable* tt, UCIInfo* uciInfo)
+thrd_t launchSearchThread(Board* board, HashTable* tt, UCIInfo* uciInfo)
 {
     SearchThreadData* data = new SearchThreadData();
     data->board = board;
     data->tt = tt;
     data->uci = uciInfo;
 
-    std::thread th(threadSearchPos, data);
+    thrd_t th;
+    thrd_create(&th, threadSearchPos, (void*)data);
+    threadCreated = true;
     return th;
 }
 
 void joinSearchThread(UCIInfo* uci)
 {
     uci->stop = true;
-    mainSearchThread.join();
+    thrd_join(mainSearchThread, NULL);
 }

@@ -24,7 +24,8 @@ void parse(const std::string& command)
 {
     if (command == "quit") {
         uci.quit = true;
-        joinSearchThread(&uci);
+        if (threadCreated)
+			joinSearchThread(&uci);
     } else if (command == "stop") {
         joinSearchThread(&uci);
     } else if (command == "ucinewgame") {
