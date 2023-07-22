@@ -154,6 +154,7 @@
     <ClCompile Include="src\perft.cpp" />
     <ClCompile Include="src\search.cpp" />
     <ClCompile Include="src\tests.cpp" />
+    <ClCompile Include="src\threads.cpp" />
     <ClCompile Include="src\tt.cpp" />
     <ClCompile Include="src\uci.cpp" />
     <ClCompile Include="src\zobrist.cpp" />

@@ -3,25 +3,13 @@
 #include <chrono>
 #include <cctype>
 
-Board mainBoard;
-bool uciQuit = false;
-bool uciStop = false;
-static bool isTimeControlled = false;
-
-static int timeLeft = -1;
-static int increment = 0;
-static int movesToGo = 40;
-static int moveTime = -1;
-static long long startTime = 0L;
-static long long stopTime = 0L;
-
-bool uciDebugMode = false;
-bool uciUseBook = true;
+UCIInfo uci;
+Board board;
 
 void uciLoop()
 {
     std::string input;
-    while (!uciQuit) {
+    while (!uci.quit) {
         input = "";
         // Get input
         std::getline(std::cin, input);
@@ -35,10 +23,14 @@ void uciLoop()
 void parse(const std::string& command)
 {
     if (command == "quit") {
-        uciQuit = true;
-    } else if (command == "ucinewgame")
+        uci.quit = true;
+        joinSearchThread(&uci);
+    } else if (command == "stop") {
+        joinSearchThread(&uci);
+    } else if (command == "ucinewgame") {
+        hashTable->clear();
         parsePos("position startpos");
-    else if (command == "uci") {
+    } else if (command == "uci") {
         printEngineID();
         printEngineOptions();
         std::cout << "uciok\n";
@@ -49,9 +41,9 @@ void parse(const std::string& command)
     else if (command.compare(0, 2, "go") == 0)
         parseGo(command);
     else if (command == "d" || command == "display")
-        mainBoard.display();
+        board.display();
     else if (command == "eval") {
-        int eval = evaluatePos(mainBoard);
+        int eval = evaluatePos(board);
         std::cout << "Current eval: " << eval << "\n";
     } else if (command.compare(0, 5, "debug") == 0) {
         // The shortest legal command for 'debug' is "debug on", which is 8 characters long.
@@ -59,9 +51,9 @@ void parse(const std::string& command)
             return;
         }
         std::string debugStatus = command.substr(5 + 1);
-        uciDebugMode = (debugStatus == "on");
+        uci.debugMode = (debugStatus == "on");
     } else if (command == "getbookmoves") {
-        int bookMove = getBookMove(mainBoard);
+        int bookMove = getBookMove(board);
         if (bookMove)
             std::cout << "Chosen book move: " << moveToStr(bookMove) << "\n";
         else
@@ -70,7 +62,7 @@ void parse(const std::string& command)
         parseSetOption(command);
     } else if (command.compare(0, 5, "perft") == 0) {
         int depth = atoi(command.substr(6).c_str());
-        perftTest(mainBoard, depth, AllMoves);
+        perftTest(board, depth, AllMoves);
     } else if (command == "help")
         printHelpInfo();
     else
@@ -84,13 +76,13 @@ void parsePos(const std::string& command)
     // Shift pointer to the beginning of args
     int currentInd = 9;
     // Reset board before setting piece up
-    mainBoard = Board();
+    board = Board();
     if (command.compare(currentInd, 8, "startpos") == 0) {
         currentInd += 8 + 1; // (+ 1) for the space
-        mainBoard.parseFen(FEN_POSITIONS[1]);
+        board.parseFen(FEN_POSITIONS[1]);
     } else if (command.compare(currentInd, 3, "fen") == 0) {
         currentInd += 3 + 1;
-        mainBoard.parseFen(command.substr(currentInd));
+        board.parseFen(command.substr(currentInd));
     }
     currentInd = (int)command.find("moves", currentInd);
     if (currentInd == std::string::npos)
@@ -102,15 +94,15 @@ void parsePos(const std::string& command)
         if (std::isdigit(command[i]) || std::isalpha(command[i]))
             moveStr += command[i];
         else {
-            move = parseMoveStr(moveStr, mainBoard);
+            move = parseMoveStr(moveStr, board);
             if (move == 0)
                 continue;
 
             // Update repetition table
-            mainBoard.repetitionIndex++;
-            mainBoard.repetitionTable[mainBoard.repetitionIndex] = mainBoard.key;
+            board.repetitionIndex++;
+            board.repetitionTable[board.repetitionIndex] = board.key;
 
-            makeMove(&mainBoard, move, MoveType::AllMoves);
+            makeMove(&board, move, MoveType::AllMoves);
             moveStr = "";
         }
     }
@@ -126,58 +118,57 @@ long long getCurrTime()
 void parseGo(const std::string& command)
 {
     // Reset time control related variables
-    uciQuit = false;
-    uciStop = false;
-    isTimeControlled = false;
-    timeLeft = -1;
-    increment = 0;
-    movesToGo = 40;
-    moveTime = -1;
+    uci.quit = false;
+    uci.stop = false;
+    uci.isTimeControlled = false;
+    uci.timeLeft = -1;
+    uci.increment = 0;
+    uci.movesToGo = 40;
+    uci.moveTime = -1;
     // Shift pointer to the beginning of args
     int currentInd = 3;
 
-    if (mainBoard.side == WHITE) {
-        parseParamI(command.substr(currentInd), "wtime", timeLeft);
-        parseParamI(command.substr(currentInd), "winc", increment);
+    if (board.side == WHITE) {
+        parseParamI(command.substr(currentInd), "wtime", uci.timeLeft);
+        parseParamI(command.substr(currentInd), "winc", uci.increment);
     } else {
-        parseParamI(command.substr(currentInd), "btime", timeLeft);
-        parseParamI(command.substr(currentInd), "binc", increment);
+        parseParamI(command.substr(currentInd), "btime", uci.timeLeft);
+        parseParamI(command.substr(currentInd), "binc", uci.increment);
     }
-    parseParamI(command.substr(currentInd), "movetime", moveTime);
-    parseParamI(command.substr(currentInd), "movestogo", movesToGo);
+    parseParamI(command.substr(currentInd), "movetime", uci.moveTime);
+    parseParamI(command.substr(currentInd), "movestogo", uci.movesToGo);
 
-    int depth = -1;
 
     if (command.compare(currentInd, 8, "infinite") == 0) {
-        depth = MAX_PLY;
+        uci.searchDepth = MAX_PLY;
     } else {
-        parseParamI(command.substr(currentInd), "depth", depth);
+        parseParamI(command.substr(currentInd), "depth", uci.searchDepth);
     }
 
-    if (moveTime != -1) {
-        timeLeft = moveTime;
-        movesToGo = 1;
+    if (uci.moveTime != -1) {
+        uci.timeLeft = uci.moveTime;
+        uci.movesToGo = 1;
     }
-    startTime = getCurrTime();
-    if (timeLeft != -1) {
-        isTimeControlled = true;
-        timeLeft /= movesToGo;
+    uci.startTime = getCurrTime();
+    if (uci.timeLeft != -1) {
+        uci.isTimeControlled = true;
+        uci.timeLeft /= uci.movesToGo;
         // Just to be safe, reduce time per move by 50 ms
-        if (timeLeft > 1500)
-            timeLeft -= 50;
-        if (timeLeft < 1500 && increment && depth == MAX_PLY)
-            stopTime = startTime + increment - 50;
+        if (uci.timeLeft > 1500)
+            uci.timeLeft -= 50;
+        if (uci.timeLeft < 1500 && uci.increment && uci.searchDepth == MAX_PLY)
+            uci.stopTime = uci.startTime + uci.increment - 50;
         else
-            stopTime = startTime + increment + timeLeft;
+            uci.stopTime = uci.startTime + uci.increment + uci.timeLeft;
     }
 
-    if (depth == -1)
-        depth = MAX_PLY;
-    if (uciDebugMode) {
-		std::cout << "time: " << timeLeft << " start: " << startTime << " stop: " << stopTime
-				  << " depth: " << depth << " timeset: " << (int)isTimeControlled << "\n";
+    if (uci.searchDepth == -1)
+        uci.searchDepth = MAX_PLY;
+    if (uci.debugMode) {
+		std::cout << "time: " << uci.timeLeft << " start: " << uci.startTime << " stop: " << uci.stopTime
+				  << " depth: " << uci.searchDepth << " timeset: " << (int)uci.isTimeControlled << "\n";
     }
-    searchPos(mainBoard, depth);
+    mainSearchThread = launchSearchThread(&board, hashTable, &uci);
 }
 
 void parseParamI(const std::string& cmdArgs, const std::string& argName, int& output)
@@ -219,20 +210,17 @@ void parseSetOption(const std::string& command)
 
     if (name == "Hash") {
         int hashSizeVal = std::stoi(value); 
-#if 1
-        tt.init(hashSizeVal);
-#else
-        initTTable(hashSizeVal);
-#endif
+        hashTable->init(hashSizeVal);
     } else if (name == "Book") {
-        uciUseBook = (value == "true");
+        uci.useBook = (value == "true");
     }
 }
 
-void checkUp()
+void checkUp(UCIInfo* info)
 {
-    if (isTimeControlled && getCurrTime() >= stopTime)
-        uciStop = true;
+    if (info->isTimeControlled && getCurrTime() >= info->stopTime) {
+        info->stop = true;
+    }
 }
 
 void printEngineID()
@@ -243,9 +231,7 @@ void printEngineID()
 
 void printEngineOptions() {
     std::cout << "option name Hash type spin default 128 min 1 max 1024\n";
-    if (uciUseBook) {
-		std::cout << "option name Book type check default true\n";
-    }
+    std::cout << "option name Book type check default " << (uci.useBook ? "true" : "false") << "\n ";
 }
 
 void printHelpInfo()

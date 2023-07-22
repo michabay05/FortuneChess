@@ -4,6 +4,14 @@
 // -INFINITY < -MATE_VALUE < -MATE_SCORE < NORMAL(non - mating) score < MATE_SCORE < MATE_VALUE <
 // INFINITY
 
+const int INF = 50'000;
+const int MATE_VALUE = 49'000;
+const int MATE_SCORE = 48'000;
+
+const int MAX_PLY = 64;
+const int FULL_DEPTH_MOVES = 4;
+const int REDUCTION_LIMIT = 3;
+
 // clang-format off
 // [attacker][victim]
 const int mvvLva[6][6] =
@@ -31,49 +39,51 @@ int pvTable[MAX_PLY][MAX_PLY]; // [ply][ply]
 bool followPV, scorePV;
 
 void getCPOrMateScore(int score);
-int negamax(Board* board, int alpha, int beta, int depth);
-int quiescence(Board* board, int alpha, int beta);
+int negamax(Board* board, HashTable* tt, UCIInfo* info, int alpha, int beta, int depth);
+int quiescence(Board* board, UCIInfo* info, int alpha, int beta);
 int scoreMoves(const Board& board, const int move);
 void printMoveScores(const MoveList& moveList, const Board& board);
 void sortMoves(MoveList& moveList, const Board& board);
-void clearSearchTable();
+void clearSearchTable(HashTable* tt, UCIInfo* info);
 void enablePVScoring(MoveList& moveList);
 bool isRepetition(Board& board);
 
-void clearSearchTable()
+void clearSearchTable(HashTable* tt, UCIInfo* info)
 {
     nodes = 0LL;
-    uciStop = false;
+    info->stop = false;
     followPV = false;
     scorePV = false;
     memset(killerMoves, 0, sizeof(killerMoves));
     memset(historyMoves, 0, sizeof(historyMoves));
     memset(pvTable, 0, sizeof(pvTable));
     memset(pvLength, 0, sizeof(pvLength));
+
+    tt->currentAge++;
 }
 
-void searchPos(Board& board, const int depth)
+void searchPos(Board* board, HashTable* tt, UCIInfo* info)
 {
-    if (uciUseBook) {
-        int bookMove = getBookMove(board);
+    if (info->useBook && !outOfBookMoves) {
+        int bookMove = getBookMove(*board);
         if (bookMove != 0) {
             std::cout << "bestmove " << moveToStr(bookMove) << "\n";
-			return;
+            return;
         }
     }
 
     long long startTime = getCurrTime();
 
     int score = 0;
-    clearSearchTable();
+    clearSearchTable(tt, info);
     int alpha = -INF, beta = INF;
-    for (int currDepth = 1; currDepth <= depth; currDepth++) {
-        if (uciStop)
+    for (int currDepth = 1; currDepth <= info->searchDepth; currDepth++) {
+        if (info->stop)
             break;
         // Enable followPV
         followPV = true;
 
-        score = negamax(&board, alpha, beta, currDepth);
+        score = negamax(board, tt, info, alpha, beta, currDepth);
         // Aspiration window
         if ((score <= alpha) || (score >= beta)) {
             alpha = -INF;
@@ -108,7 +118,7 @@ void getCPOrMateScore(int score)
     }
 }
 
-int negamax(Board* board, int alpha, int beta, int depth)
+int negamax(Board* board, HashTable* tt, UCIInfo* info, int alpha, int beta, int depth)
 {
     pvLength[ply] = ply;
     int score;
@@ -124,17 +134,17 @@ int negamax(Board* board, int alpha, int beta, int depth)
 
     // Read score from transposition table if position already exists inside the
     // table
-    if (ply && (score = tt.read(*board, alpha, beta, depth)) != NO_TT_ENTRY && !isPVNode)
+    if (ply && (score = tt->read(*board, alpha, beta, depth)) != NO_TT_ENTRY && !isPVNode)
         return score;
 
     // every 2047 nodes
     if ((nodes & 2047) == 0)
         // "listen" to the GUI/user input
-        checkUp();
+        checkUp(info);
 
     // Escape condition
     if (depth == 0)
-        return quiescence(board, alpha, beta);
+        return quiescence(board, info, alpha, beta);
 
     // Exit if ply > max ply; ply should be <= 63
     if (ply > MAX_PLY - 1)
@@ -175,13 +185,13 @@ int negamax(Board* board, int alpha, int beta, int depth)
         updateZobristSide(*board);
 
         // Search move with reduced depth to find beta-cutoffs
-        score = -negamax(board, -beta, -beta + 1, depth - 1 - 2);
+        score = -negamax(board, tt, info, -beta, -beta + 1, depth - 1 - 2);
 
         ply--;
         board->repetitionIndex--;
 
         *board = anotherClone;
-        if (uciStop)
+        if (info->stop)
             return 0;
         // Fail hard; beta-cutoffs
         if (score >= beta)
@@ -213,7 +223,7 @@ int negamax(Board* board, int alpha, int beta, int depth)
         if (!makeMove(board, mv, MoveType::AllMoves)) {
             // Decrement move and move onto next move
             ply--;
-			board->repetitionIndex--;
+            board->repetitionIndex--;
             continue;
         }
 
@@ -223,12 +233,12 @@ int negamax(Board* board, int alpha, int beta, int depth)
         // Full depth search
         if (movesSearched == 0) {
             // Do normal alpha-beta search
-            score = -negamax(board, -beta, -alpha, depth - 1);
+            score = -negamax(board, tt, info, -beta, -alpha, depth - 1);
         } else {
             // Late move reduction (LMR)
             if (movesSearched >= FULL_DEPTH_MOVES && depth >= REDUCTION_LIMIT && !inCheck &&
                 getPromoted(mv) == EMPTY && !isCapture(mv))
-                score = -negamax(board, -alpha - 1, -alpha, depth - 2);
+                score = -negamax(board, tt, info, -alpha - 1, -alpha, depth - 2);
             else
                 // Hack to ensure full depth search is done
                 score = alpha + 1;
@@ -236,11 +246,11 @@ int negamax(Board* board, int alpha, int beta, int depth)
             // PVS (Principal Variation Search)
             if (score > alpha) {
                 // re-search at full depth but with narrowed score bandwith
-                score = -negamax(board, -alpha - 1, -alpha, depth - 1);
+                score = -negamax(board, tt, info, -alpha - 1, -alpha, depth - 1);
 
                 // if LMR fails re-search at full depth and full score bandwith
                 if ((score > alpha) && (score < beta))
-                    score = -negamax(board, -beta, -alpha, depth - 1);
+                    score = -negamax(board, tt, info, -beta, -alpha, depth - 1);
             }
         }
         // Decrement ply and restore board state
@@ -249,7 +259,7 @@ int negamax(Board* board, int alpha, int beta, int depth)
 
         *board = clone;
 
-        if (uciStop)
+        if (info->stop)
             return 0;
 
         movesSearched++;
@@ -276,7 +286,7 @@ int negamax(Board* board, int alpha, int beta, int depth)
             // Fail-hard beta cutoff
             if (score >= beta) {
                 // Store hash entry with score equal to beta
-                tt.store(*board, beta, depth, F_BETA);
+                tt->store(*board, beta, depth, F_BETA);
 
                 if (!isCapture(mv)) {
                     // Move 1st killer move to 2nd killer move
@@ -301,17 +311,17 @@ int negamax(Board* board, int alpha, int beta, int depth)
         }
     }
     // Store hash entry with score equal to alpha
-    tt.store(*board, alpha, depth, flag);
+    tt->store(*board, alpha, depth, flag);
     // Move that failed low
     return alpha;
 }
 
-int quiescence(Board* board, int alpha, int beta)
+int quiescence(Board* board, UCIInfo* info, int alpha, int beta)
 {
     // every 2047 nodes
     if ((nodes & 2047) == 0)
         // "listen" to the GUI/user input
-        checkUp();
+        checkUp(info);
 
     // Increment nodes
     nodes++;
@@ -354,20 +364,20 @@ int quiescence(Board* board, int alpha, int beta)
         if (!makeMove(board, moveList.list[i], MoveType::OnlyCaptures)) {
             // Decrement move and move onto next move
             ply--;
-			board->repetitionIndex--;
+            board->repetitionIndex--;
             continue;
         }
 
         // Score current move
-        int score = -quiescence(board, -beta, -alpha);
+        int score = -quiescence(board, info, -beta, -alpha);
 
         // Decrement ply and restore board state
         ply--;
-		board->repetitionIndex--;
+        board->repetitionIndex--;
 
         *board = clone;
 
-        if (uciStop)
+        if (info->stop)
             return 0;
 
         // If current move is better, update move

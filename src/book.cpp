@@ -10,21 +10,21 @@ bool outOfBookMoves;
 
 void initBook()
 {
-    if (!uciUseBook)
+    if (!uci.useBook)
         return;
 
     FILE* bookFile;
     fopen_s(&bookFile, "performance.bin", "rb");
     if (bookFile == NULL) {
         std::cout << "[ERROR]: Failed to *open* the opening book in.\n";
-        uciUseBook = false;
+        uci.useBook = false;
         return;
     }
     fseek(bookFile, 0, SEEK_END);
     int32_t fileSize = ftell(bookFile);
     if (fileSize < sizeof(PolyEntry)) {
         std::cout << "[ERROR]: No entry found!\n";
-        uciUseBook = false;
+        uci.useBook = false;
         return;
     }
     BookEntriesCount = fileSize / sizeof(PolyEntry);
@@ -32,7 +32,7 @@ void initBook()
     bookEntries = new PolyEntry[BookEntriesCount];
     if (bookEntries == nullptr) {
         std::cout << "[ERROR]: Failed to *read* the opening book in.\n";
-        uciUseBook = false;
+        uci.useBook = false;
         return;
     }
 
@@ -41,7 +41,7 @@ void initBook()
     if (readEntries == BookEntriesCount) {
         char mbStr[6];
         snprintf(mbStr, 5, "%1.2f", (fileSize / 1'000'000.f));
-        if (uciDebugMode) {
+        if (uci.debugMode) {
 			std::cout << "Opening book initialized with size of " << mbStr << " MB(" << BookEntriesCount
 					  << " entries)\n";
         }
@@ -50,7 +50,12 @@ void initBook()
     fclose(bookFile);
 }
 
-void deinitBook() { delete[] bookEntries; }
+void deinitBook()
+{
+    if (uci.debugMode)
+        std::cout << "Deinitialized the opening book\n";
+    delete[] bookEntries;
+}
 
 PolyEntry::PolyEntry() : key(0ULL), move(0), weight(0), learn(0) {}
 
@@ -192,7 +197,7 @@ int getBookMove(Board& board)
             break;
     }
 
-    if (uciDebugMode) {
+    if (uci.debugMode) {
 		for (int i = 0; i < bookMoveCount; i++)
 			std::cout << moveToStr(bookMoves[i]) << "\n";
     }

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <iostream>
 #include <string>
+#include <thread>
 
 #define VERSION "1.1"
 
@@ -50,6 +51,10 @@ enum Color { WHITE, BLACK, BOTH };
 
 enum CastlingRights { c_wk, c_wq, c_bk, c_bq };
 
+enum MoveType { AllMoves, OnlyCaptures };
+
+enum TTFlag { F_EXACT, F_ALPHA, F_BETA };
+
 /* Direction offsets */
 enum Direction {
     NORTH = 8,
@@ -70,50 +75,8 @@ enum Direction {
     SW_W = -10, // SOUTH + 2(WEST) -> 'KNIGHT ONLY'
 };
 
-extern const std::string PIECE_STR;
-extern const std::string STR_COORDS[65];
-
-// attack.cpp
-extern uint64_t pawnAttacks[2][64];      // [color][square]
-extern uint64_t knightAttacks[64];       // [square]
-extern uint64_t kingAttacks[64];         // [square]
-extern uint64_t bishopOccMasks[64];      // [square]
-extern uint64_t bishopAttacks[64][512];  // [square][occupancy variations]
-extern uint64_t rookOccMasks[64];        // [square]
-extern uint64_t rookAttacks[64][4096];   // [square][occupancy variations]
-extern const int bishopRelevantBits[64]; // [square]
-extern const int rookRelevantBits[64];   // [square]
-
-void initAttacks();
-void initLeapers();
-void initSliding(const PieceTypes piece);
-void genPawnAttacks(const Color side, const int sq);
-void genKnightAttacks(const int sq);
-void genKingAttacks(const int sq);
-uint64_t genBishopOccupancy(const int sq);
-uint64_t genBishopAttack(const int sq, const uint64_t blockerBoard);
-uint64_t genRookOccupancy(const int sq);
-uint64_t genRookAttack(const int sq, const uint64_t blockerBoard);
-uint64_t setOccupancy(const int index, const int relevantBits, uint64_t attackMask);
-
-// bitboard.cpp
-void printBits(const uint64_t bitboard);
-inline int countBits(uint64_t bitboard)
-{
-    int count = 0;
-    for (count = 0; bitboard; count++, bitboard &= bitboard - 1)
-        ;
-    return count;
-}
-inline int lsbIndex(const uint64_t bitboard)
-{
-    return bitboard > 0 ? countBits(bitboard ^ (bitboard - 1)) - 1 : 0;
-}
-
+// STRUCTURES
 // board.cpp
-extern const std::string FEN_POSITIONS[8];
-extern const uint8_t CASTLING_RIGHTS[64];
-
 struct Board
 {
   public:
@@ -161,20 +124,7 @@ struct PolyEntry
     PolyEntry();
 };
 
-extern PolyEntry* bookEntries;
-
-void initBook();
-void deinitBook();
-uint64_t genPolyKey(const Board& board);
-int getBookMove(Board& board);
-
-// eval.cpp
-void initEvalMasks();
-int evaluatePos(Board& board);
-
 // move.cpp
-enum MoveType { AllMoves, OnlyCaptures };
-
 struct MoveList
 {
     int list[256];
@@ -185,6 +135,151 @@ struct MoveList
     void print() const;
 };
 
+// tt.cpp
+struct TT
+{
+    uint64_t key; // "almost" unique chess position identifier
+    uint64_t lock;
+    int depth;   // current search depth
+    TTFlag flag; // flag the type of node (fail-low/fail-high/PV)
+    int score;   // score (alpha/beta/PV)
+    int age;
+
+    TT();
+};
+
+struct HashTable
+{
+    TT* table;
+    int entryCount;
+    int currentAge;
+
+    // Stats
+    int newWrite;
+    int overWrite;
+
+    HashTable();
+    void init(int MB);
+    void deinit();
+    int read(Board& board, int alpha, int beta, int depth);
+    void store(Board& board, int score, int depth, TTFlag flag);
+    void clear();
+};
+
+// uci.cpp
+struct UCIInfo
+{
+    bool quit = false;
+    bool stop = false;
+    bool isTimeControlled = false;
+
+    int timeLeft = -1;
+    int increment = 0;
+    int movesToGo = 40;
+    int moveTime = -1;
+    long long startTime = 0L;
+    long long stopTime = 0L;
+
+    int searchDepth = -1;
+
+    bool debugMode = true;
+    bool useBook = true;
+};
+
+// thread.cpp
+struct SearchThreadData
+{
+    Board* board;
+    HashTable* tt;
+    UCIInfo* uci;
+};
+
+// GLOBAL VARIABLES
+extern const std::string PIECE_STR;
+extern const std::string STR_COORDS[65];
+
+// attack.cpp
+extern uint64_t pawnAttacks[2][64];      // [color][square]
+extern uint64_t knightAttacks[64];       // [square]
+extern uint64_t kingAttacks[64];         // [square]
+extern uint64_t bishopOccMasks[64];      // [square]
+extern uint64_t bishopAttacks[64][512];  // [square][occupancy variations]
+extern uint64_t rookOccMasks[64];        // [square]
+extern uint64_t rookAttacks[64][4096];   // [square][occupancy variations]
+extern const int bishopRelevantBits[64]; // [square]
+extern const int rookRelevantBits[64];   // [square]
+
+// board.cpp
+extern const std::string FEN_POSITIONS[8];
+extern const uint8_t CASTLING_RIGHTS[64];
+
+// book.cpp
+extern PolyEntry* bookEntries;
+extern bool outOfBookMoves;
+
+// magics.cpp
+extern const uint64_t BISHOP_MAGICS[64];
+extern const uint64_t ROOK_MAGICS[64];
+
+// search.cpp
+extern const int MATE_SCORE;
+extern const int MAX_PLY;
+extern int ply;
+extern int64_t nodes;
+
+// search.cpp
+extern HashTable hashTable[1];
+
+// thread.cpp
+extern std::thread mainSearchThread;
+
+// tt.cpp
+extern const int NO_TT_ENTRY;
+#define DEFAULT_TT_SIZE 128
+
+// uci.cpp
+extern UCIInfo uci;
+
+
+// FUNCTION PROTOTYPES
+// attack.cpp
+void initAttacks();
+void initLeapers();
+void initSliding(const PieceTypes piece);
+void genPawnAttacks(const Color side, const int sq);
+void genKnightAttacks(const int sq);
+void genKingAttacks(const int sq);
+uint64_t genBishopOccupancy(const int sq);
+uint64_t genBishopAttack(const int sq, const uint64_t blockerBoard);
+uint64_t genRookOccupancy(const int sq);
+uint64_t genRookAttack(const int sq, const uint64_t blockerBoard);
+uint64_t setOccupancy(const int index, const int relevantBits, uint64_t attackMask);
+
+// bitboard.cpp
+void printBits(const uint64_t bitboard);
+inline int countBits(uint64_t bitboard)
+{
+    int count = 0;
+    for (count = 0; bitboard; count++, bitboard &= bitboard - 1)
+        ;
+    return count;
+}
+inline int lsbIndex(const uint64_t bitboard)
+{
+    return bitboard > 0 ? countBits(bitboard ^ (bitboard - 1)) - 1 : 0;
+}
+
+// book.cpp
+void initBook();
+void deinitBook();
+uint64_t genPolyKey(const Board& board);
+int getBookMove(Board& board);
+
+// eval.cpp
+void initEvalMasks();
+int evaluatePos(Board& board);
+
+// move.cpp
 int encode(int source, int target, int piece, int promoted, bool isCapture, bool isTwoSquarePush,
            bool isEnpassant, bool isCastling);
 int getSource(const int move);
@@ -210,9 +305,6 @@ void genBlackCastling(MoveList& moveList, const Board& board);
 bool makeMove(Board* main, const int move, MoveType moveFlag);
 
 // magics.cpp
-extern const uint64_t BISHOP_MAGICS[64];
-extern const uint64_t ROOK_MAGICS[64];
-
 uint64_t random64();
 
 uint64_t findMagicNumber(const int sq, const int relevantBits, const PieceTypes piece);
@@ -225,70 +317,14 @@ uint64_t getQueenAttack(const int sq, uint64_t blockerBoard);
 uint64_t perftTest(Board& board, const int depth, MoveType moveType);
 
 // search.cpp
-const int INF = 50'000;
-const int MATE_VALUE = 49'000;
-const int MATE_SCORE = 48'000;
+void searchPos(Board* board, HashTable* tt, UCIInfo* info);
 
-const int MAX_PLY = 64;
-const int FULL_DEPTH_MOVES = 4;
-const int REDUCTION_LIMIT = 3;
-
-extern int ply;
-extern int64_t nodes;
-
-void searchPos(Board& board, const int depth);
-
-// tt.cpp
-enum TTFlag { F_EXACT, F_ALPHA, F_BETA };
-const int NO_TT_ENTRY = 100'000;
-
-// The entry structure for the transposition table
-struct TT
-{
-    uint64_t key;  // "almost" unique chess position identifier
-    uint64_t lock;
-    int depth;     // current search depth
-    TTFlag flag;   // flag the type of node (fail-low/fail-high/PV)
-    int score;     // score (alpha/beta/PV)
-
-    TT();
-};
-
-#define DEFAULT_TT_SIZE 128
-
-#if 1
-struct HashTable
-{
-    TT* table;
-    int entryCount;
-    int currentAge;
-
-    HashTable();
-    void init(int MB);
-    void deinit();
-    int read(Board& board, int alpha, int beta, int depth);
-    void store(Board& board, int score, int depth, TTFlag flag);
-    void clear();
-    void resize(int newMB);
-};
-
-extern HashTable tt;
-
-#else
-extern TT* ttable;
-void initTTable(int MB);
-void deinitTTable();
-void clearTTable();
-int readTTEntry(Board& board, int alpha, int beta, int depth);
-void writeTTEntry(Board& board, int score, int depth, TTFlag flag);
-#endif
+// thread.cpp
+int threadSearchPos(SearchThreadData* data);
+std::thread launchSearchThread(Board* board, HashTable* tt, UCIInfo* uciInfo);
+void joinSearchThread(UCIInfo* uci);
 
 // uci.cpp
-extern bool uciQuit;
-extern bool uciStop;
-extern bool uciUseBook;
-extern bool uciDebugMode;
-
 void uciLoop();
 long long getCurrTime();
 void parse(const std::string& command);
@@ -297,7 +333,7 @@ void parseGo(const std::string& command);
 void parseParamI(const std::string& cmdArgs, const std::string& argName, int& output);
 void parseParam(const std::string& cmdArgs, const std::string& argName, std::string& output);
 void parseSetOption(const std::string& command);
-void checkUp();
+void checkUp(UCIInfo* info);
 void printEngineID();
 void printEngineOptions();
 void printHelpInfo();
@@ -310,3 +346,4 @@ void updateZobristCastling(Board& board);
 void updateZobristEnpassant(Board& board);
 void updateZobristSide(Board& board);
 void updateZobristPiece(Board& board, int p, int sq);
+
