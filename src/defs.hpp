@@ -138,12 +138,17 @@ struct MoveList
 // tt.cpp
 struct TT
 {
+    /*
     uint64_t key; // "almost" unique chess position identifier
     uint64_t lock;
     int depth;   // current search depth
     TTFlag flag; // flag the type of node (fail-low/fail-high/PV)
     int score;   // score (alpha/beta/PV)
+	*/
+
     int age;
+    uint64_t smpKey;
+    uint64_t smpData;
 
     TT();
 };
@@ -157,6 +162,7 @@ struct HashTable
     // Stats
     int newWrite;
     int overWrite;
+    int entriesFilled;
 
     HashTable();
     void init(int MB);
@@ -183,7 +189,7 @@ struct UCIInfo
     int searchDepth = -1;
 
     bool debugMode = false;
-    bool useBook = true;
+    bool useBook = false;
 };
 
 // thread.cpp
@@ -222,6 +228,8 @@ extern const uint64_t BISHOP_MAGICS[64];
 extern const uint64_t ROOK_MAGICS[64];
 
 // search.cpp
+extern const int INF;
+extern const int MATE_VALUE;
 extern const int MATE_SCORE;
 extern const int MAX_PLY;
 extern int ply;
@@ -316,6 +324,9 @@ uint64_t getQueenAttack(const int sq, uint64_t blockerBoard);
 
 // perft.cpp
 uint64_t perftTest(Board& board, const int depth, MoveType moveType);
+
+// tt.cpp
+void tempHashTest(const std::string fen);
 
 // search.cpp
 void searchPos(Board* board, HashTable* tt, UCIInfo* info);

@@ -13,7 +13,7 @@ void runTests()
 
 int main()
 {
-    srand(time(NULL));
+    srand((unsigned int)time(NULL));
 
     initAttacks();
     initBook();
@@ -29,6 +29,4 @@ int main()
 		deinitBook();
 		hashTable->deinit();
     }
-
-    //delete hashTable;
 }

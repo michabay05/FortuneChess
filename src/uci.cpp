@@ -1,7 +1,7 @@
 #include "defs.hpp"
 
-#include <chrono>
 #include <cctype>
+#include <chrono>
 
 UCIInfo uci;
 Board board;
@@ -25,7 +25,7 @@ void parse(const std::string& command)
     if (command == "quit") {
         uci.quit = true;
         if (threadCreated)
-			joinSearchThread(&uci);
+            joinSearchThread(&uci);
     } else if (command == "stop") {
         joinSearchThread(&uci);
     } else if (command == "ucinewgame") {
@@ -35,6 +35,9 @@ void parse(const std::string& command)
         printEngineID();
         printEngineOptions();
         std::cout << "uciok\n";
+    } else if (command == "run") {
+        parse("position fen 8/7p/5k2/5p2/p1p2P2/Pr1pPK2/1P1R3P/8 b - - 0 1");
+        parse("go infinite");
     } else if (command == "isready")
         std::cout << "readyok\n";
     else if (command.compare(0, 8, "position") == 0)
@@ -43,7 +46,15 @@ void parse(const std::string& command)
         parseGo(command);
     else if (command == "d" || command == "display")
         board.display();
-    else if (command == "eval") {
+    else if (command == "ttstat") {
+        std::cout << "TT Overwrite: " << hashTable->overWrite << "\n";
+        std::cout << "TT New write: " << hashTable->newWrite << "\n";
+        std::cout << "TT    Filled: " << hashTable->entriesFilled << " / "
+                  << hashTable->entryCount
+                  << "\n";
+        std::cout << "TT  % Filled: "
+                  << ((float)hashTable->entriesFilled / hashTable->entryCount) * 100.f << "% \n";
+    } else if (command == "eval") {
         int eval = evaluatePos(board);
         std::cout << "Current eval: " << eval << "\n";
     } else if (command.compare(0, 5, "debug") == 0) {
@@ -139,7 +150,6 @@ void parseGo(const std::string& command)
     parseParamI(command.substr(currentInd), "movetime", uci.moveTime);
     parseParamI(command.substr(currentInd), "movestogo", uci.movesToGo);
 
-
     if (command.compare(currentInd, 8, "infinite") == 0) {
         uci.searchDepth = MAX_PLY;
     } else {
@@ -166,8 +176,9 @@ void parseGo(const std::string& command)
     if (uci.searchDepth == -1)
         uci.searchDepth = MAX_PLY;
     if (uci.debugMode) {
-		std::cout << "time: " << uci.timeLeft << " start: " << uci.startTime << " stop: " << uci.stopTime
-				  << " depth: " << uci.searchDepth << " timeset: " << (int)uci.isTimeControlled << "\n";
+        std::cout << "time: " << uci.timeLeft << " start: " << uci.startTime
+                  << " stop: " << uci.stopTime << " depth: " << uci.searchDepth
+                  << " timeset: " << (int)uci.isTimeControlled << "\n";
     }
     mainSearchThread = launchSearchThread(&board, hashTable, &uci);
 }
@@ -202,7 +213,7 @@ void parseSetOption(const std::string& command)
 {
     int currentIndex = 9;
     std::string name = "";
-    std::string value = ""; 
+    std::string value = "";
     parseParam(command.substr(currentIndex), "name", name);
     parseParam(command.substr(currentIndex), "value", value);
     if (name.empty() || value.empty()) {
@@ -210,7 +221,7 @@ void parseSetOption(const std::string& command)
     }
 
     if (name == "Hash") {
-        int hashSizeVal = std::stoi(value); 
+        int hashSizeVal = std::stoi(value);
         hashTable->init(hashSizeVal);
     } else if (name == "Book") {
         uci.useBook = (value == "true");
@@ -230,9 +241,10 @@ void printEngineID()
     std::cout << "id author michabay05\n";
 }
 
-void printEngineOptions() {
+void printEngineOptions()
+{
     std::cout << "option name Hash type spin default 128 min 1 max 1024\n";
-    std::cout << "option name Book type check default " << (uci.useBook ? "true" : "false") << "\n ";
+    std::cout << "option name Book type check default " << (uci.useBook ? "true" : "false") << "\n";
 }
 
 void printHelpInfo()

@@ -98,6 +98,8 @@
       </AdditionalIncludeDirectories>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <InlineFunctionExpansion>Default</InlineFunctionExpansion>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -133,6 +135,8 @@
       </AdditionalIncludeDirectories>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <InlineFunctionExpansion>Default</InlineFunctionExpansion>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

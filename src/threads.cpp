@@ -7,7 +7,7 @@ int threadSearchPos(void* thData)
 {
     SearchThreadData* data = (SearchThreadData*)thData;
     if (uci.debugMode)
-		std::cout << "Entered a new thread!\n";
+        std::cout << "Entered a new thread!\n";
 
     Board* copy = new Board();
     memcpy(copy, data->board, sizeof(Board));
@@ -16,7 +16,7 @@ int threadSearchPos(void* thData)
     delete copy;
 
     if (uci.debugMode)
-		std::cout << "Exiting the new thread!\n";
+        std::cout << "Exiting the new thread!\n";
     return 0;
 }
 
