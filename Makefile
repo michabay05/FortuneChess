@@ -1,6 +1,3 @@
-# all:
-# g++ -o bin/fortune-chess src/*.cpp src/tinycthread.c -I src -O3
-
 SRCDIR = src
 INCDIR = include
 VENDORDIR = include/vendor
