@@ -153,27 +153,10 @@ struct TT
     TT();
 };
 
-struct HashTable
-{
-    TT* table;
-    int entryCount;
-    int currentAge;
+#define MAX_PLY 64
+#define MAX_THREADS 4
 
-    // Stats
-    int newWrite;
-    int overWrite;
-    int entriesFilled;
-
-    HashTable();
-    void init(int MB);
-    void deinit();
-    int read(Board& board, int alpha, int beta, int depth);
-    void store(Board& board, int score, int depth, TTFlag flag);
-    void clear();
-};
-
-// uci.cpp
-struct UCIInfo
+struct SearchInfo
 {
     bool quit = false;
     bool stop = false;
@@ -187,9 +170,44 @@ struct UCIInfo
     long long stopTime = 0L;
 
     int searchDepth = -1;
+    int threadCount = 2;
 
     bool debugMode = false;
     bool useBook = false;
+};
+
+struct SearchTable
+{
+	int ply = 0;
+	uint64_t nodes;
+
+	// Quiet moves that caused a beta-cutoff
+	int killerMoves[2][MAX_PLY]; // [id][ply]
+	// Quiet moves that updated the alpha value
+	int historyMoves[12][64];      // [piece][square]
+	int pvLength[MAX_PLY];         // [ply]
+	int pvTable[MAX_PLY][MAX_PLY]; // [ply][ply]
+
+	// PV flags
+	bool followPV, scorePV;
+};
+
+struct HashTable
+{
+    TT* table;
+    int entryCount;
+    int currentAge;
+
+    // Stats
+    int newWrite;
+    int overWrite;
+
+    HashTable();
+    void init(int MB);
+    void deinit();
+    int read(Board& board, const SearchTable& sTable, int alpha, int beta, int depth);
+    void store(Board& board, const SearchTable& sTable, int score, int depth, TTFlag flag);
+    void clear();
 };
 
 // thread.cpp
@@ -197,7 +215,17 @@ struct SearchThreadData
 {
     Board* board;
     HashTable* tt;
-    UCIInfo* uci;
+    SearchInfo* sInfo;
+    SearchTable* sTable;
+};
+
+struct SearchWorkerData
+{
+    Board* board;
+    HashTable* tt;
+    SearchInfo* sInfo;
+    SearchTable* sTable;
+    int threadID;
 };
 
 // GLOBAL VARIABLES
@@ -231,24 +259,21 @@ extern const uint64_t ROOK_MAGICS[64];
 extern const int INF;
 extern const int MATE_VALUE;
 extern const int MATE_SCORE;
-extern const int MAX_PLY;
-extern int ply;
-extern int64_t nodes;
 
 // search.cpp
-extern HashTable hashTable[1];
+extern SearchTable mainSearchTable;
 
 // thread.cpp
 extern thrd_t mainSearchThread;
 extern bool threadCreated;
 
 // tt.cpp
+extern HashTable hashTable;
 extern const int NO_TT_ENTRY;
-#define DEFAULT_TT_SIZE 128
+#define DEFAULT_TT_SIZE 256
 
 // uci.cpp
-extern UCIInfo uci;
-
+extern SearchInfo sInfo;
 
 // FUNCTION PROTOTYPES
 // attack.cpp
@@ -329,11 +354,14 @@ uint64_t perftTest(Board& board, const int depth, MoveType moveType);
 void tempHashTest(const std::string fen);
 
 // search.cpp
-void searchPos(Board* board, HashTable* tt, UCIInfo* info);
+void workerSearchPos(SearchWorkerData* data);
+void searchPos(Board* board, HashTable* tt, SearchInfo* sInfo, SearchTable* sTable);
 
 // thread.cpp
-thrd_t launchSearchThread(Board* board, HashTable* tt, UCIInfo* uciInfo);
-void joinSearchThread(UCIInfo* uci);
+void createSearchWorkers(Board* board, SearchInfo* sInfo, SearchTable* sTable, HashTable* tt);
+void joinSearchWorkers(const SearchInfo* sInfo);
+thrd_t launchSearchThread(Board* board, HashTable* tt, SearchInfo* sInfo, SearchTable* sTable);
+void joinSearchThread(SearchInfo* uci);
 
 // uci.cpp
 void uciLoop();
@@ -344,7 +372,7 @@ void parseGo(const std::string& command);
 void parseParamI(const std::string& cmdArgs, const std::string& argName, int& output);
 void parseParam(const std::string& cmdArgs, const std::string& argName, std::string& output);
 void parseSetOption(const std::string& command);
-void checkUp(UCIInfo* info);
+void checkUp(SearchInfo* info);
 void printEngineID();
 void printEngineOptions();
 void printHelpInfo();

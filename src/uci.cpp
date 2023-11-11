@@ -3,13 +3,13 @@
 #include <cctype>
 #include <chrono>
 
-UCIInfo uci;
-Board board;
+SearchInfo sInfo;
+static Board board;
 
 void uciLoop()
 {
     std::string input;
-    while (!uci.quit) {
+    while (!sInfo.quit) {
         input = "";
         // Get input
         std::getline(std::cin, input);
@@ -23,20 +23,20 @@ void uciLoop()
 void parse(const std::string& command)
 {
     if (command == "quit") {
-        uci.quit = true;
+        sInfo.quit = true;
         if (threadCreated)
-            joinSearchThread(&uci);
+            joinSearchThread(&sInfo);
     } else if (command == "stop") {
-        joinSearchThread(&uci);
+        joinSearchThread(&sInfo);
     } else if (command == "ucinewgame") {
-        hashTable->clear();
+        hashTable.clear();
         parsePos("position startpos");
     } else if (command == "uci") {
         printEngineID();
         printEngineOptions();
         std::cout << "uciok\n";
     } else if (command == "run") {
-        parse("position fen 8/7p/5k2/5p2/p1p2P2/Pr1pPK2/1P1R3P/8 b - - 0 1");
+        parse("position fen 8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1");
         parse("go infinite");
     } else if (command == "isready")
         std::cout << "readyok\n";
@@ -47,13 +47,13 @@ void parse(const std::string& command)
     else if (command == "d" || command == "display")
         board.display();
     else if (command == "ttstat") {
-        std::cout << "TT Overwrite: " << hashTable->overWrite << "\n";
-        std::cout << "TT New write: " << hashTable->newWrite << "\n";
-        std::cout << "TT    Filled: " << hashTable->entriesFilled << " / "
-                  << hashTable->entryCount
+        std::cout << "TT Overwrite: " << hashTable.overWrite << "\n";
+        std::cout << "TT New write: " << hashTable.newWrite << "\n";
+        std::cout << "TT    Filled: " << hashTable.newWrite << " / "
+                  << hashTable.entryCount
                   << "\n";
         std::cout << "TT  % Filled: "
-                  << ((float)hashTable->entriesFilled / hashTable->entryCount) * 100.f << "% \n";
+                  << ((float)hashTable.newWrite / hashTable.entryCount) * 100.f << "% \n";
     } else if (command == "eval") {
         int eval = evaluatePos(board);
         std::cout << "Current eval: " << eval << "\n";
@@ -63,7 +63,7 @@ void parse(const std::string& command)
             return;
         }
         std::string debugStatus = command.substr(5 + 1);
-        uci.debugMode = (debugStatus == "on");
+        sInfo.debugMode = (debugStatus == "on");
     } else if (command == "getbookmoves") {
         int bookMove = getBookMove(board);
         if (bookMove)
@@ -130,57 +130,57 @@ long long getCurrTime()
 void parseGo(const std::string& command)
 {
     // Reset time control related variables
-    uci.quit = false;
-    uci.stop = false;
-    uci.isTimeControlled = false;
-    uci.timeLeft = -1;
-    uci.increment = 0;
-    uci.movesToGo = 40;
-    uci.moveTime = -1;
+    sInfo.quit = false;
+    sInfo.stop = false;
+    sInfo.isTimeControlled = false;
+    sInfo.timeLeft = -1;
+    sInfo.increment = 0;
+    sInfo.movesToGo = 40;
+    sInfo.moveTime = -1;
     // Shift pointer to the beginning of args
     int currentInd = 3;
 
     if (board.side == WHITE) {
-        parseParamI(command.substr(currentInd), "wtime", uci.timeLeft);
-        parseParamI(command.substr(currentInd), "winc", uci.increment);
+        parseParamI(command.substr(currentInd), "wtime", sInfo.timeLeft);
+        parseParamI(command.substr(currentInd), "winc", sInfo.increment);
     } else {
-        parseParamI(command.substr(currentInd), "btime", uci.timeLeft);
-        parseParamI(command.substr(currentInd), "binc", uci.increment);
+        parseParamI(command.substr(currentInd), "btime", sInfo.timeLeft);
+        parseParamI(command.substr(currentInd), "binc", sInfo.increment);
     }
-    parseParamI(command.substr(currentInd), "movetime", uci.moveTime);
-    parseParamI(command.substr(currentInd), "movestogo", uci.movesToGo);
+    parseParamI(command.substr(currentInd), "movetime", sInfo.moveTime);
+    parseParamI(command.substr(currentInd), "movestogo", sInfo.movesToGo);
 
     if (command.compare(currentInd, 8, "infinite") == 0) {
-        uci.searchDepth = MAX_PLY;
+        sInfo.searchDepth = MAX_PLY;
     } else {
-        parseParamI(command.substr(currentInd), "depth", uci.searchDepth);
+        parseParamI(command.substr(currentInd), "depth", sInfo.searchDepth);
     }
 
-    if (uci.moveTime != -1) {
-        uci.timeLeft = uci.moveTime;
-        uci.movesToGo = 1;
+    if (sInfo.moveTime != -1) {
+        sInfo.timeLeft = sInfo.moveTime;
+        sInfo.movesToGo = 1;
     }
-    uci.startTime = getCurrTime();
-    if (uci.timeLeft != -1) {
-        uci.isTimeControlled = true;
-        uci.timeLeft /= uci.movesToGo;
+    sInfo.startTime = getCurrTime();
+    if (sInfo.timeLeft != -1) {
+        sInfo.isTimeControlled = true;
+        sInfo.timeLeft /= sInfo.movesToGo;
         // Just to be safe, reduce time per move by 50 ms
-        if (uci.timeLeft > 1500)
-            uci.timeLeft -= 50;
-        if (uci.timeLeft < 1500 && uci.increment && uci.searchDepth == MAX_PLY)
-            uci.stopTime = uci.startTime + uci.increment - 50;
+        if (sInfo.timeLeft > 1500)
+            sInfo.timeLeft -= 50;
+        if (sInfo.timeLeft < 1500 && sInfo.increment && sInfo.searchDepth == MAX_PLY)
+            sInfo.stopTime = sInfo.startTime + sInfo.increment - 50;
         else
-            uci.stopTime = uci.startTime + uci.increment + uci.timeLeft;
+            sInfo.stopTime = sInfo.startTime + sInfo.increment + sInfo.timeLeft;
     }
 
-    if (uci.searchDepth == -1)
-        uci.searchDepth = MAX_PLY;
-    if (uci.debugMode) {
-        std::cout << "time: " << uci.timeLeft << " start: " << uci.startTime
-                  << " stop: " << uci.stopTime << " depth: " << uci.searchDepth
-                  << " timeset: " << (int)uci.isTimeControlled << "\n";
+    if (sInfo.searchDepth == -1)
+        sInfo.searchDepth = MAX_PLY;
+    if (sInfo.debugMode) {
+        std::cout << "time: " << sInfo.timeLeft << " start: " << sInfo.startTime
+                  << " stop: " << sInfo.stopTime << " depth: " << sInfo.searchDepth
+                  << " timeset: " << (int)sInfo.isTimeControlled << "\n";
     }
-    mainSearchThread = launchSearchThread(&board, hashTable, &uci);
+    mainSearchThread = launchSearchThread(&board, &hashTable, &sInfo, &mainSearchTable);
 }
 
 void parseParamI(const std::string& cmdArgs, const std::string& argName, int& output)
@@ -222,13 +222,13 @@ void parseSetOption(const std::string& command)
 
     if (name == "Hash") {
         int hashSizeVal = std::stoi(value);
-        hashTable->init(hashSizeVal);
+        hashTable.init(hashSizeVal);
     } else if (name == "Book") {
-        uci.useBook = (value == "true");
+        sInfo.useBook = (value == "true");
     }
 }
 
-void checkUp(UCIInfo* info)
+void checkUp(SearchInfo* info)
 {
     if (info->isTimeControlled && getCurrTime() >= info->stopTime) {
         info->stop = true;
@@ -244,7 +244,7 @@ void printEngineID()
 void printEngineOptions()
 {
     std::cout << "option name Hash type spin default 128 min 1 max 1024\n";
-    std::cout << "option name Book type check default " << (uci.useBook ? "true" : "false") << "\n";
+    std::cout << "option name Book type check default " << (sInfo.useBook ? "true" : "false") << "\n";
 }
 
 void printHelpInfo()

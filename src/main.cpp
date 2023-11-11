@@ -18,15 +18,15 @@ int main()
     initAttacks();
     initBook();
 	initEvalMasks();
-	hashTable->init(DEFAULT_TT_SIZE);
+	hashTable.init(DEFAULT_TT_SIZE);
     initZobrist();
 #if TEST == 1
     runTests();
 #else
     uciLoop();
 #endif
-    if (uci.quit) {
+    if (sInfo.quit) {
 		deinitBook();
-		hashTable->deinit();
+		hashTable.deinit();
     }
 }

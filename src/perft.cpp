@@ -63,7 +63,7 @@ uint64_t perftTest(Board& board, const int depth, MoveType moveType)
         // Restore board state
         board = clone;
 
-        if (uci.debugMode) {
+        if (sInfo.debugMode) {
             std::cout << moveToStr(moveList.list[i]) << ": " << (nodeCount - prevNodeCount)
                       << "\n";
         }

@@ -30,7 +30,7 @@ static const int ONE_MB = 0x100000;
 
 const int NO_TT_ENTRY = 100'000;
 
-HashTable hashTable[1];
+HashTable hashTable;
 
 HashTable::HashTable() : table(nullptr), entryCount(0), currentAge(0), newWrite(0), overWrite(0) {}
 
@@ -40,8 +40,8 @@ void HashTable::init(int MB)
     _MY_ASSERT(MB <= 1024, "Maximum size of transposition table is 1024 MB");
 
     const int HASH_SIZE = ONE_MB * MB;
-    // entryCount = HASH_SIZE / sizeof(TT);
-    entryCount = 1'000'000;
+    entryCount = HASH_SIZE / sizeof(TT);
+    //entryCount = 1'000'000;
 
     if (table != nullptr) {
         std::cout << "Clearing memory!\n";
@@ -57,14 +57,12 @@ void HashTable::init(int MB)
     }
 
     clear();
-    std::cout << "Transposition table initialized with size of " << MB << " MB(" << entryCount
-              << " entries)\n";
+    //std::cout << "Transposition table initialized with size of " << MB << " MB(" << entryCount << " entries)\n";
 }
 
 void HashTable::deinit()
 {
-    if (uci.debugMode)
-        std::cout << "Deinitialized the transposition table!\n";
+	//std::cout << "Deinitialized the transposition table!\n";
     delete[] table;
 }
 
@@ -76,9 +74,8 @@ void HashTable::clear()
     currentAge = 0;
     newWrite = 0;
     overWrite = 0;
-    entriesFilled = 0;
 
-    std::cout << "Cleared transposition table!\n";
+    //std::cout << "Cleared transposition table!\n";
 }
 
 #if 0
@@ -102,7 +99,7 @@ void verifyEntrySMP(TT entry)
 #endif
 
 // read hash entry data
-int HashTable::read(Board& board, int alpha, int beta, int depth)
+int HashTable::read(Board& board, const SearchTable& sTable, int alpha, int beta, int depth)
 {
     TT entry = table[board.key % entryCount];
 
@@ -124,9 +121,9 @@ int HashTable::read(Board& board, int alpha, int beta, int depth)
             // retrieve score independent from the actual path
             // from root node (position) to current node (position)
             if (score < -MATE_SCORE)
-                score += ply;
+                score += sTable.ply;
             if (score > MATE_SCORE)
-                score -= ply;
+                score -= sTable.ply;
 
             // match the exact (PV node) score
             if (smpFlag == F_EXACT)
@@ -150,7 +147,7 @@ int HashTable::read(Board& board, int alpha, int beta, int depth)
 }
 
 // write hash entry data
-void HashTable::store(Board& board, int score, int depth, TTFlag flag)
+void HashTable::store(Board& board, const SearchTable& sTable, int score, int depth, TTFlag flag)
 {
     TT* entry = &table[board.key % entryCount];
 
@@ -169,15 +166,12 @@ void HashTable::store(Board& board, int score, int depth, TTFlag flag)
     if (!shouldReplace)
         return;
 
-    if (entriesFilled < entryCount)
-        entriesFilled++;
-
     // store score independent from the actual path
     // from root node (position) to current node (position)
     if (score < -MATE_SCORE)
-        score -= ply;
+        score -= sTable.ply;
     if (score > MATE_SCORE)
-        score += ply;
+        score += sTable.ply;
 
     uint64_t smpData = FOLD_DATA(score, depth, flag);
     // write hash entry data
